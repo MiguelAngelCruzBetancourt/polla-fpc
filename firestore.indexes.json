@@ -1,0 +1,31 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "predictions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetType", "order": "ASCENDING" },
+        { "fieldPath": "targetId", "order": "ASCENDING" },
+        { "fieldPath": "performedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "members",
+      "fieldPath": "uid",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}

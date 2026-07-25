@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['username', 'createdAt']);
+      allow delete: if false;
+    }
+
+    match /usernames/{username} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow update, delete: if false; // el username es fijo una vez elegido
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow write: if false; // todas las escrituras pasan por los endpoints de la sección 9 (Admin SDK)
+    }
+
+    match /predictions/{predictionId} {
+      allow read: if request.auth != null
+        && (
+          request.auth.uid == resource.data.uid
+          || request.time >= get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.kickoff - duration.value(10, 'm')
+        );
+      allow write: if false; // todo pasa por POST /api/predictions (Admin SDK)
+    }
+
+    match /rooms/{roomId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['code', 'bannedUids']);
+        // el código y la lista de baneados solo se tocan desde POST /api/rooms/[roomId]/kick (Admin SDK)
+      allow delete: if false;
+    }
+
+    // Wildcard recursivo {path=**}: necesario para que la regla también cubra
+    // collectionGroup('members') (usado por "Mis salas" y por el recálculo de ranking) —
+    // un match anidado normal (rooms/{roomId}/members/{uid}) solo cubre lecturas directas
+    // o listados de la subcolección, no collection group queries.
+    match /{path=**}/members/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && get(/databases/$(database)/documents/rooms/$(path[1])).data.status == 'open'
+        && !(uid in get(/databases/$(database)/documents/rooms/$(path[1])).data.bannedUids);
+      allow update: if request.auth != null && request.auth.uid == uid; // ej. actualizar su propio displayName
+      allow delete: if false; // expulsar (kick) solo vía backend con Admin SDK
+    }
+
+    match /auditLog/{logId} {
+      allow read: if request.auth != null;
+      allow write: if false; // solo se escribe desde el backend (Admin SDK)
+    }
+
+    match /rateLimits/{uid} {
+      allow read, write: if false; // solo lo toca el backend (Admin SDK) para el rate limiting
+    }
+
+    match /syncRuns/{runId} {
+      allow read: if request.auth != null && request.auth.token.resultsAdmin == true;
+      allow write: if false; // solo lo escribe POST /api/sync/schedule (Admin SDK)
+    }
+  }
+}
