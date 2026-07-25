@@ -39,9 +39,9 @@ export async function POST(request: Request) {
 
   const db = adminDb();
 
-  let rows;
+  let rows, skipped;
   try {
-    rows = await fetchAndParseSchedule(csvUrl);
+    ({ rows, skipped } = await fetchAndParseSchedule(csvUrl));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "No se pudo leer la hoja de cálculo." },
@@ -54,8 +54,10 @@ export async function POST(request: Request) {
   await db.collection("syncRuns").add({
     runAt: Timestamp.now(),
     rowsRead: rows.length,
+    rowsSkipped: skipped.length,
+    skipped,
     ...summary,
   });
 
-  return NextResponse.json({ ok: true, rowsRead: rows.length, ...summary });
+  return NextResponse.json({ ok: true, rowsRead: rows.length, skipped, ...summary });
 }

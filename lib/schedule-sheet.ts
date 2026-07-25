@@ -1,7 +1,15 @@
 import * as XLSX from "xlsx";
-import { z } from "zod";
 
 const COLOMBIA_UTC_OFFSET = "-05:00";
+const REQUIRED_COLUMNS = [
+  "jornada",
+  "equipo_local",
+  "equipo_visitante",
+  "fecha",
+  "hora",
+  "marcador_local",
+  "marcador_visitante",
+] as const;
 
 export interface SheetRow {
   jornada: number;
@@ -12,31 +20,23 @@ export interface SheetRow {
   awayScore: number | null;
 }
 
-const rawRowSchema = z.object({
-  jornada: z.coerce.number().int().positive(),
-  equipo_local: z.string().trim().min(1),
-  equipo_visitante: z.string().trim().min(1),
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "fecha debe ser AAAA-MM-DD"),
-  hora: z.string().regex(/^\d{2}:\d{2}$/, "hora debe ser HH:MM"),
-  marcador_local: z.string(),
-  marcador_visitante: z.string(),
-});
+export interface ParseResult {
+  rows: SheetRow[];
+  // Filas que no se pudieron usar todavía (sin fecha/hora, vacías, duplicadas, etc.)
+  // — no son errores fatales, son estados normales de un fixture que se va llenando
+  // progresivamente (ver conversación con el usuario: puede ir agregando jornadas).
+  skipped: string[];
+}
 
-function parseScore(raw: string, column: string, rowLabel: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const value = Number(trimmed);
-  if (!Number.isInteger(value) || value < 0 || value > 20) {
-    throw new Error(`Fila ${rowLabel}: ${column} inválido ("${raw}").`);
-  }
-  return value;
+function cell(rawRow: Record<string, unknown>, key: string): string {
+  return String(rawRow[key] ?? "").trim();
 }
 
 export function buildCsvUrl(sheetId: string, gid: string): string {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 }
 
-export async function fetchAndParseSchedule(csvUrl: string): Promise<SheetRow[]> {
+export async function fetchAndParseSchedule(csvUrl: string): Promise<ParseResult> {
   const res = await fetch(csvUrl);
   if (!res.ok) {
     throw new Error(`No se pudo descargar el Sheet (HTTP ${res.status}).`);
@@ -57,32 +57,75 @@ export async function fetchAndParseSchedule(csvUrl: string): Promise<SheetRow[]>
   const sheet = workbook.Sheets[workbook.SheetNames[0]!]!;
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: true, defval: "" });
 
+  // Un encabezado con una columna faltante/renombrada es un problema estructural
+  // real (afecta a TODAS las filas por igual) — eso sí aborta todo el parseo.
+  const actualColumns = new Set(Object.keys(rawRows[0] ?? {}));
+  for (const col of REQUIRED_COLUMNS) {
+    if (!actualColumns.has(col)) {
+      throw new Error(`Falta la columna "${col}" en el encabezado de la hoja.`);
+    }
+  }
+
   const rows: SheetRow[] = [];
+  const skipped: string[] = [];
   const seenPairs = new Set<string>();
 
   rawRows.forEach((rawRow, index) => {
     const rowLabel = String(index + 2); // +2: fila 1 es encabezado, index es 0-based
 
-    const parsed = rawRowSchema.safeParse(rawRow);
-    if (!parsed.success) {
-      throw new Error(`Fila ${rowLabel}: formato inválido — ${parsed.error.issues[0]?.message}`);
+    const homeTeam = cell(rawRow, "equipo_local");
+    const awayTeam = cell(rawRow, "equipo_visitante");
+
+    if (!homeTeam && !awayTeam) return; // fila completamente vacía (placeholder de jornada futura) — se ignora sin aviso
+
+    if (!homeTeam || !awayTeam) {
+      skipped.push(`Fila ${rowLabel}: falta equipo_local o equipo_visitante.`);
+      return;
     }
 
-    const pairKey = `${parsed.data.equipo_local}::${parsed.data.equipo_visitante}`;
+    const label = `${homeTeam} vs ${awayTeam}`;
+    const pairKey = `${homeTeam}::${awayTeam}`;
     if (seenPairs.has(pairKey)) {
-      throw new Error(`Fila ${rowLabel}: el par de equipos "${pairKey}" ya apareció antes en la hoja.`);
+      skipped.push(`${label} (fila ${rowLabel}): par de equipos repetido en la hoja, se ignora la fila duplicada.`);
+      return;
     }
-    seenPairs.add(pairKey);
 
+    const fecha = cell(rawRow, "fecha");
+    const hora = cell(rawRow, "hora");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{2}:\d{2}$/.test(hora)) {
+      skipped.push(`${label}: todavía no tiene fecha/hora válida (AAAA-MM-DD / HH:MM) — se omite por ahora.`);
+      return;
+    }
+
+    const jornada = Number(cell(rawRow, "jornada"));
+    if (!Number.isInteger(jornada) || jornada <= 0) {
+      skipped.push(`${label}: jornada inválida ("${cell(rawRow, "jornada")}") — se omite.`);
+      return;
+    }
+
+    const homeScoreRaw = cell(rawRow, "marcador_local");
+    const awayScoreRaw = cell(rawRow, "marcador_visitante");
+    const homeScore = homeScoreRaw === "" ? null : Number(homeScoreRaw);
+    const awayScore = awayScoreRaw === "" ? null : Number(awayScoreRaw);
+
+    if (
+      (homeScore !== null && (!Number.isInteger(homeScore) || homeScore < 0 || homeScore > 20)) ||
+      (awayScore !== null && (!Number.isInteger(awayScore) || awayScore < 0 || awayScore > 20))
+    ) {
+      skipped.push(`${label}: marcador inválido ("${homeScoreRaw}"-"${awayScoreRaw}") — se omite.`);
+      return;
+    }
+
+    seenPairs.add(pairKey);
     rows.push({
-      jornada: parsed.data.jornada,
-      homeTeam: parsed.data.equipo_local,
-      awayTeam: parsed.data.equipo_visitante,
-      kickoffIso: `${parsed.data.fecha}T${parsed.data.hora}:00${COLOMBIA_UTC_OFFSET}`,
-      homeScore: parseScore(parsed.data.marcador_local, "marcador_local", rowLabel),
-      awayScore: parseScore(parsed.data.marcador_visitante, "marcador_visitante", rowLabel),
+      jornada,
+      homeTeam,
+      awayTeam,
+      kickoffIso: `${fecha}T${hora}:00${COLOMBIA_UTC_OFFSET}`,
+      homeScore,
+      awayScore,
     });
   });
 
-  return rows;
+  return { rows, skipped };
 }
