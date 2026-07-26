@@ -70,6 +70,7 @@ export type AuditAction =
   | "match_cancelled"
   | "result_loaded"
   | "member_kicked"
+  | "member_left"
   | "room_code_regenerated"
   | "historical_data_imported"
   | "bonus_points_added";

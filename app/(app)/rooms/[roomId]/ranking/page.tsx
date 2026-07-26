@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { Podium } from "@/components/podium";
 import { RankingTable } from "@/components/ranking-table";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +47,6 @@ export default function RoomRankingPage() {
         </Alert>
       )}
 
-      <Podium members={members} />
       <RankingTable members={members} currentUid={user?.uid} />
     </div>
   );

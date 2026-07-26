@@ -9,7 +9,6 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar } from "@/components/ui/avatar";
-import { BottomNav } from "@/components/ui/bottom-nav";
 import { auth } from "@/lib/firebase-client";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -47,29 +46,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             Polla <span className="text-accent">BetPlay</span>
           </Link>
 
-          <nav className="hidden items-center gap-1 sm:flex">
-            <Link
-              href="/rooms"
-              className="transition-base rounded-lg px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-alt hover:text-text"
-            >
-              Mis salas
-            </Link>
-            <Link
-              href="/history"
-              className="transition-base rounded-lg px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-alt hover:text-text"
-            >
-              Historial
-            </Link>
-            {resultsAdmin && (
-              <Link
-                href="/admin/results"
-                className="transition-base flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-text-muted hover:bg-surface-alt hover:text-text"
-              >
-                <Shield size={14} /> Admin
-              </Link>
-            )}
-          </nav>
-
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <div className="relative" ref={menuRef}>
@@ -85,6 +61,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {menuOpen && (
                 <div className="animate-in absolute right-0 top-full mt-2 w-44 rounded-lg border border-border bg-surface p-1 shadow-md">
                   <p className="truncate px-3 py-2 text-xs text-text-muted">{displayName}</p>
+                  {resultsAdmin && (
+                    <Link
+                      href="/admin/results"
+                      onClick={() => setMenuOpen(false)}
+                      className="transition-base flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-text hover:bg-surface-alt"
+                    >
+                      <Shield size={14} /> Admin
+                    </Link>
+                  )}
                   <button
                     onClick={() => signOut(auth)}
                     className="transition-base flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-text hover:bg-surface-alt"
@@ -97,8 +82,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-20 sm:pb-6">{children}</main>
-      <BottomNav resultsAdmin={resultsAdmin} />
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
     </div>
   );
 }
