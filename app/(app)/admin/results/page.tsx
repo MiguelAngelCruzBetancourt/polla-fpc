@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -59,6 +59,7 @@ export default function AdminResultsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [rooms, setRooms] = useState<RoomWithId[] | null>(null);
+  const [matchRoomId, setMatchRoomId] = useState("");
   const [bonusRoomId, setBonusRoomId] = useState("");
   const [bonusFile, setBonusFile] = useState<File | null>(null);
   const [bonusRows, setBonusRows] = useState<ResolvedBonusRow[] | null>(null);
@@ -66,8 +67,14 @@ export default function AdminResultsPage() {
   const [bonusBusy, setBonusBusy] = useState(false);
   const [bonusError, setBonusError] = useState<string | null>(null);
 
-  const loadMatches = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, "matches"), orderBy("kickoff", "desc")));
+  const loadMatches = useCallback(async (roomId: string) => {
+    if (!roomId) {
+      setMatches([]);
+      return;
+    }
+    const snap = await getDocs(
+      query(collection(db, "matches"), where("roomId", "==", roomId), orderBy("kickoff", "desc")),
+    );
     setMatches(snap.docs.map((d) => ({ id: d.id, ...(d.data() as MatchDoc) })));
   }, []);
 
@@ -75,13 +82,17 @@ export default function AdminResultsPage() {
     const snap = await getDocs(collection(db, "rooms"));
     const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as RoomDoc) }));
     setRooms(list);
+    setMatchRoomId((prev) => prev || list[0]?.id || "");
     setBonusRoomId((prev) => prev || list[0]?.id || "");
   }, []);
 
   useEffect(() => {
-    void loadMatches();
     void loadRooms();
-  }, [loadMatches, loadRooms]);
+  }, [loadRooms]);
+
+  useEffect(() => {
+    void loadMatches(matchRoomId);
+  }, [loadMatches, matchRoomId]);
 
   function updateRow(index: number, patch: Partial<NewMatchRow>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -89,10 +100,12 @@ export default function AdminResultsPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (!matchRoomId) return;
     setCreateError(null);
     setCreating(true);
     try {
       const payload = {
+        roomId: matchRoomId,
         matches: rows.map((row) => ({
           jornada: Number(row.jornada),
           homeTeam: row.homeTeam.trim(),
@@ -102,7 +115,7 @@ export default function AdminResultsPage() {
       };
       await authFetchJson("/api/matches", { method: "POST", body: JSON.stringify(payload) });
       setRows([emptyRow()]);
-      await loadMatches();
+      await loadMatches(matchRoomId);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "No se pudieron crear los partidos.");
     } finally {
@@ -159,6 +172,28 @@ export default function AdminResultsPage() {
       <Card>
         <form onSubmit={handleCreate} className="flex flex-col gap-4 p-4 sm:p-5">
           <h2 className="font-heading font-semibold text-text">Crear partidos en lote</h2>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="matchRoom" className="text-sm font-medium text-text">
+              Sala
+            </label>
+            <select
+              id="matchRoom"
+              value={matchRoomId}
+              onChange={(e) => setMatchRoomId(e.target.value)}
+              className="transition-base min-h-11 rounded-lg border border-border bg-surface px-3 text-base text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              required
+            >
+              {rooms === null && <option value="">Cargando salas…</option>}
+              {rooms?.length === 0 && <option value="">No hay salas todavía</option>}
+              {rooms?.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {rows.map((row, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 border-b border-border pb-3 sm:grid-cols-4">
               <TextField
@@ -193,7 +228,7 @@ export default function AdminResultsPage() {
             <Button type="button" variant="outline" onClick={() => setRows((prev) => [...prev, emptyRow()])}>
               + Agregar fila
             </Button>
-            <Button type="submit" isLoading={creating}>
+            <Button type="submit" isLoading={creating} disabled={!matchRoomId}>
               Guardar partidos
             </Button>
           </div>
@@ -284,10 +319,15 @@ export default function AdminResultsPage() {
       </Card>
 
       <div className="flex flex-col gap-3">
-        <h2 className="font-heading font-semibold text-text">Partidos existentes</h2>
+        <h2 className="font-heading font-semibold text-text">
+          Partidos existentes {rooms?.find((r) => r.id === matchRoomId) && `— ${rooms.find((r) => r.id === matchRoomId)!.name}`}
+        </h2>
         {matches === null && <p className="text-sm text-text-muted">Cargando…</p>}
+        {matches?.length === 0 && (
+          <p className="text-sm text-text-muted">Esta sala todavía no tiene partidos.</p>
+        )}
         {matches?.map((match) => (
-          <AdminMatchRow key={match.id} match={match} onChanged={loadMatches} />
+          <AdminMatchRow key={match.id} match={match} onChanged={() => loadMatches(matchRoomId)} />
         ))}
       </div>
     </div>

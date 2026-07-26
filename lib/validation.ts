@@ -10,6 +10,7 @@ export const matchInputSchema = z.object({
 });
 
 export const createMatchesSchema = z.object({
+  roomId: z.string().min(1),
   matches: z.array(matchInputSchema).min(1),
 });
 

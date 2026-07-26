@@ -33,6 +33,7 @@ export interface MatchInput {
 export async function createMatchesService(
   db: FirebaseFirestore.Firestore,
   actorUid: string,
+  roomId: string,
   matches: MatchInput[],
 ): Promise<{ matchIds: string[] }> {
   const now = Timestamp.now();
@@ -43,6 +44,7 @@ export async function createMatchesService(
     const ref = db.collection("matches").doc();
     createdIds.push(ref.id);
     batch.set(ref, {
+      roomId,
       jornada: match.jornada,
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
@@ -59,7 +61,6 @@ export async function createMatchesService(
       cancelledBy: null,
       cancelledAt: null,
       imported: null,
-      pendingResult: null,
     });
 
     batch.set(db.collection("auditLog").doc(), {
@@ -205,13 +206,12 @@ export async function gradeMatchResultService(
     status: "finished",
     resultEnteredBy: actorUid,
     resultLockedAt: now,
-    pendingResult: null,
   });
 
   const predictionsSnap = await db.collection("predictions").where("matchId", "==", matchId).get();
 
   const predictionOps: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
-  const roomIncrements = new Map<
+  const memberIncrements = new Map<
     string,
     { totalPoints: number; exactCount: number; winnerCount: number }
   >();
@@ -224,25 +224,30 @@ export async function gradeMatchResultService(
     );
     predictionOps.push((batch) => batch.update(predictionDoc.ref, { points }));
 
-    const memberDocs = await db.collectionGroup("members").where("uid", "==", prediction.uid).get();
-
-    for (const memberDoc of memberDocs.docs) {
-      const key = memberDoc.ref.path;
-      const current = roomIncrements.get(key) ?? { totalPoints: 0, exactCount: 0, winnerCount: 0 };
-      current.totalPoints += points;
-      if (points === 5) current.exactCount += 1;
-      if (points === 3) current.winnerCount += 1;
-      roomIncrements.set(key, current);
-    }
+    // El partido pertenece a una sola sala — solo esa sala se actualiza,
+    // a diferencia del modelo anterior (global) que buscaba en todas las
+    // salas donde participara el jugador.
+    const current = memberIncrements.get(prediction.uid) ?? {
+      totalPoints: 0,
+      exactCount: 0,
+      winnerCount: 0,
+    };
+    current.totalPoints += points;
+    if (points === 5) current.exactCount += 1;
+    if (points === 3) current.winnerCount += 1;
+    memberIncrements.set(prediction.uid, current);
   }
 
   await commitInChunks(db, predictionOps);
 
   const memberUpdateOps: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
-  for (const [memberPath, increment] of roomIncrements) {
+  for (const [uid, increment] of memberIncrements) {
+    const memberRef = db.collection("rooms").doc(match.roomId).collection("members").doc(uid);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) continue; // el jugador ya no está en la sala del partido
+
     memberUpdateOps.push((batch) => {
-      const ref = db.doc(memberPath);
-      batch.update(ref, {
+      batch.update(memberRef, {
         totalPoints: FieldValue.increment(increment.totalPoints),
         exactCount: FieldValue.increment(increment.exactCount),
         winnerCount: FieldValue.increment(increment.winnerCount),

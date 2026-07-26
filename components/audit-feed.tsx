@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase-client";
-import { SYSTEM_ACTOR_UID } from "@/lib/sync-constants";
 import type { AuditAction, AuditLogDoc } from "@/lib/types";
 
 const ACTION_LABEL: Record<AuditAction, string> = {
@@ -70,10 +69,6 @@ export function AuditFeed({
       const nameByUid = new Map<string, string>();
       await Promise.all(
         uniqueUids.map(async (uid) => {
-          if (uid === SYSTEM_ACTOR_UID) {
-            nameByUid.set(uid, "Sincronización automática");
-            return;
-          }
           const userSnap = await getDoc(doc(db, "users", uid));
           nameByUid.set(uid, userSnap.exists() ? userSnap.data().displayName : "alguien");
         }),

@@ -38,6 +38,7 @@ export default function RoomMatchesPage() {
     const matchesSnap = await getDocs(
       query(
         collection(db, "matches"),
+        where("roomId", "==", roomId),
         where("kickoff", ">=", Timestamp.fromDate(start)),
         where("kickoff", "<", Timestamp.fromDate(end)),
         orderBy("kickoff", "asc"),

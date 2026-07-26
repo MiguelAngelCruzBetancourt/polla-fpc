@@ -16,6 +16,14 @@
         { "fieldPath": "targetId", "order": "ASCENDING" },
         { "fieldPath": "performedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "roomId", "order": "ASCENDING" },
+        { "fieldPath": "kickoff", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

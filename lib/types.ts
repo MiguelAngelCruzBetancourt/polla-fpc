@@ -35,6 +35,7 @@ export interface RoomMemberDoc {
 export type MatchStatus = "scheduled" | "closed" | "finished" | "cancelled";
 
 export interface MatchDoc {
+  roomId: string; // el partido pertenece a esta sala; no es global
   jornada: number;
   homeTeam: string;
   awayTeam: string;
@@ -51,9 +52,6 @@ export interface MatchDoc {
   cancelledBy: string | null;
   cancelledAt: Timestamp | null;
   imported: boolean | null;
-  // Marcador visto en la corrida de sync anterior, aún no calificado en firme.
-  // Solo lo escribe lib/schedule-sync.ts; el flujo manual de admin califica directo.
-  pendingResult: { homeScore: number; awayScore: number } | null;
 }
 
 export interface PredictionDoc {

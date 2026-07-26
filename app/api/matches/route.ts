@@ -20,6 +20,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { matchIds } = await createMatchesService(adminDb(), auth.uid, parsed.data.matches);
+  const { matchIds } = await createMatchesService(
+    adminDb(),
+    auth.uid,
+    parsed.data.roomId,
+    parsed.data.matches,
+  );
   return NextResponse.json({ matchIds }, { status: 201 });
 }

@@ -62,10 +62,5 @@ service cloud.firestore {
     match /rateLimits/{uid} {
       allow read, write: if false; // solo lo toca el backend (Admin SDK) para el rate limiting
     }
-
-    match /syncRuns/{runId} {
-      allow read: if request.auth != null && request.auth.token.resultsAdmin == true;
-      allow write: if false; // solo lo escribe POST /api/sync/schedule (Admin SDK)
-    }
   }
 }
