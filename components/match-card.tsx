@@ -3,9 +3,11 @@
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 import { CheckCircle2, Clock, Lock, XCircle } from "lucide-react";
+import { useState } from "react";
 import { AuditFeed } from "@/components/audit-feed";
 import { PredictionForm } from "@/components/prediction-form";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { TeamCrest } from "@/components/ui/team-crest";
 import { getDisplayStatus, type DisplayStatus } from "@/lib/match-status";
@@ -48,6 +50,7 @@ export function MatchCard({
   const displayStatus = getDisplayStatus(match);
   const status = STATUS_META[displayStatus];
   const StatusIcon = status.icon;
+  const [isEditing, setIsEditing] = useState(false);
 
   return (
     <Card className="animate-in">
@@ -76,16 +79,25 @@ export function MatchCard({
 
         {displayStatus === "scheduled" && (
           <div>
-            <PredictionForm
-              matchId={match.id}
-              initialHomeScore={myPrediction?.homeScore}
-              initialAwayScore={myPrediction?.awayScore}
-              onSubmitted={onPredictionSubmitted}
-            />
-            {myPrediction && (
-              <p className="mt-1 text-xs text-text-muted">
-                Puedes corregirlo mientras el partido siga abierto.
-              </p>
+            {myPrediction && !isEditing ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-text-muted">
+                  Tu pronóstico: {myPrediction.homeScore} - {myPrediction.awayScore}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                  Editar
+                </Button>
+              </div>
+            ) : (
+              <PredictionForm
+                matchId={match.id}
+                initialHomeScore={myPrediction?.homeScore}
+                initialAwayScore={myPrediction?.awayScore}
+                onSubmitted={() => {
+                  setIsEditing(false);
+                  onPredictionSubmitted();
+                }}
+              />
             )}
           </div>
         )}
