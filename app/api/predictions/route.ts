@@ -44,26 +44,18 @@ export async function POST(request: Request) {
 
   const predictionId = `${matchId}_${auth.uid}`;
   const predictionRef = db.collection("predictions").doc(predictionId);
-  const existing = await predictionRef.get();
-  if (existing.exists) {
-    return NextResponse.json({ error: "Ya enviaste tu pronóstico para este partido." }, { status: 409 });
-  }
 
-  try {
-    // .create() (en vez de .set()) rechaza si el doc ya existe — defensa extra contra
-    // una carrera entre el chequeo de arriba y esta escritura.
-    await predictionRef.create({
-      matchId,
-      uid: auth.uid,
-      homeScore,
-      awayScore,
-      submittedAt: Timestamp.now(),
-      points: null,
-      imported: null,
-    });
-  } catch {
-    return NextResponse.json({ error: "Ya enviaste tu pronóstico para este partido." }, { status: 409 });
-  }
+  // set() crea o sobreescribe indistintamente — se puede corregir el pronóstico
+  // mientras el partido siga scheduled y no haya pasado el cierre (validado arriba).
+  await predictionRef.set({
+    matchId,
+    uid: auth.uid,
+    homeScore,
+    awayScore,
+    submittedAt: Timestamp.now(),
+    points: null,
+    imported: null,
+  });
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

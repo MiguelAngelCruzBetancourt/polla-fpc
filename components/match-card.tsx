@@ -76,12 +76,16 @@ export function MatchCard({
 
         {displayStatus === "scheduled" && (
           <div>
-            {myPrediction ? (
-              <p className="text-sm text-text-muted">
-                Tu pronóstico: {myPrediction.homeScore} - {myPrediction.awayScore}
+            <PredictionForm
+              matchId={match.id}
+              initialHomeScore={myPrediction?.homeScore}
+              initialAwayScore={myPrediction?.awayScore}
+              onSubmitted={onPredictionSubmitted}
+            />
+            {myPrediction && (
+              <p className="mt-1 text-xs text-text-muted">
+                Puedes corregirlo mientras el partido siga abierto.
               </p>
-            ) : (
-              <PredictionForm matchId={match.id} onSubmitted={onPredictionSubmitted} />
             )}
           </div>
         )}

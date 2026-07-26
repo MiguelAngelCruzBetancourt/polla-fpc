@@ -6,13 +6,17 @@ import { authFetchJson } from "@/lib/api-client";
 
 export function PredictionForm({
   matchId,
+  initialHomeScore,
+  initialAwayScore,
   onSubmitted,
 }: {
   matchId: string;
+  initialHomeScore?: number;
+  initialAwayScore?: number;
   onSubmitted: () => void;
 }) {
-  const [homeScore, setHomeScore] = useState("");
-  const [awayScore, setAwayScore] = useState("");
+  const [homeScore, setHomeScore] = useState(initialHomeScore?.toString() ?? "");
+  const [awayScore, setAwayScore] = useState(initialAwayScore?.toString() ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -69,7 +73,7 @@ export function PredictionForm({
         />
       </div>
       <Button type="submit" isLoading={submitting} className="ml-2">
-        Enviar
+        Guardar pronóstico
       </Button>
       {error && <p className="ml-2 text-sm text-error">{error}</p>}
     </form>
