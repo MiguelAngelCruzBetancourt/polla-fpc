@@ -2,6 +2,17 @@
 
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import dayjs from "dayjs";
+import {
+  Ban,
+  CalendarPlus,
+  Gift,
+  History,
+  KeyRound,
+  Pencil,
+  Trophy,
+  UserMinus,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase-client";
 import { SYSTEM_ACTOR_UID } from "@/lib/sync-constants";
@@ -15,6 +26,18 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   member_kicked: "expulsó a un miembro",
   room_code_regenerated: "regeneró el código de la sala",
   historical_data_imported: "importó datos históricos",
+  bonus_points_added: "agregó puntos bonus",
+};
+
+const ACTION_ICON: Record<AuditAction, LucideIcon> = {
+  match_created: CalendarPlus,
+  match_edited: Pencil,
+  match_cancelled: Ban,
+  result_loaded: Trophy,
+  member_kicked: UserMinus,
+  room_code_regenerated: KeyRound,
+  historical_data_imported: History,
+  bonus_points_added: Gift,
 };
 
 interface FeedEntry extends AuditLogDoc {
@@ -62,17 +85,28 @@ export function AuditFeed({
     })();
   }, [targetType, targetId]);
 
-  if (entries === null) return <p className="text-xs text-slate-400">Cargando actividad…</p>;
+  if (entries === null) return <p className="text-xs text-text-muted">Cargando actividad…</p>;
   if (entries.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1 border-t border-slate-100 pt-2">
-      {entries.map((entry) => (
-        <p key={entry.id} className="text-xs text-slate-500">
-          {entry.performedByName} {ACTION_LABEL[entry.action]} el{" "}
-          {dayjs(entry.performedAt.toDate()).format("D MMM YYYY, h:mm A")}
-        </p>
-      ))}
-    </div>
+    <details className="group border-t border-border pt-2">
+      <summary className="cursor-pointer list-none text-xs font-medium text-text-muted hover:text-text">
+        Actividad ({entries.length})
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">
+        {entries.map((entry) => {
+          const Icon = ACTION_ICON[entry.action];
+          return (
+            <div key={entry.id} className="flex items-start gap-2 text-xs text-text-muted">
+              <Icon size={14} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+              <span>
+                {entry.performedByName} {ACTION_LABEL[entry.action]} el{" "}
+                {dayjs(entry.performedAt.toDate()).format("D MMM YYYY, h:mm A")}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }

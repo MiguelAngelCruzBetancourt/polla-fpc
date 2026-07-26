@@ -5,6 +5,7 @@ import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { auth, db } from "@/lib/firebase-client";
@@ -87,8 +88,8 @@ export default function RegisterPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Crear cuenta</h1>
-        <p className="text-sm text-slate-500">Únete a la polla de la Liga BetPlay.</p>
+        <h1 className="font-heading text-xl font-semibold text-text">Crear cuenta</h1>
+        <p className="text-sm text-text-muted">Únete a la polla de la Liga BetPlay.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -129,16 +130,16 @@ export default function RegisterPage() {
           required
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <Alert variant="error">{error}</Alert>}
 
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Creando cuenta…" : "Registrarme"}
+        <Button type="submit" isLoading={submitting}>
+          Registrarme
         </Button>
       </form>
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="text-center text-sm text-text-muted">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/login" className="font-medium text-emerald-700">
+        <Link href="/login" className="font-medium text-accent">
           Inicia sesión
         </Link>
       </p>

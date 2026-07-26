@@ -3,6 +3,7 @@
 import { sendPasswordResetEmail } from "firebase/auth";
 import Link from "next/link";
 import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { auth } from "@/lib/firebase-client";
@@ -30,16 +31,14 @@ export default function ForgotPasswordPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Recuperar contraseña</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-heading text-xl font-semibold text-text">Recuperar contraseña</h1>
+        <p className="text-sm text-text-muted">
           Te enviamos un enlace a tu correo para restablecerla.
         </p>
       </div>
 
       {sent ? (
-        <p className="text-sm text-emerald-700">
-          Listo, revisa tu correo ({email}) para continuar.
-        </p>
+        <Alert variant="success">Listo, revisa tu correo ({email}) para continuar.</Alert>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField
@@ -52,16 +51,16 @@ export default function ForgotPasswordPage() {
             required
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <Alert variant="error">{error}</Alert>}
 
-          <Button type="submit" disabled={submitting}>
-            {submitting ? "Enviando…" : "Enviar enlace"}
+          <Button type="submit" isLoading={submitting}>
+            Enviar enlace
           </Button>
         </form>
       )}
 
-      <p className="text-center text-sm text-slate-500">
-        <Link href="/login" className="font-medium text-emerald-700">
+      <p className="text-center text-sm text-text-muted">
+        <Link href="/login" className="font-medium text-accent">
           Volver a iniciar sesión
         </Link>
       </p>

@@ -5,7 +5,11 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AuditFeed } from "@/components/audit-feed";
 import { useAuth } from "@/components/auth-provider";
+import { Alert } from "@/components/ui/alert";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { authFetchJson } from "@/lib/api-client";
 import { db } from "@/lib/firebase-client";
 import type { RoomDoc, RoomMemberDoc } from "@/lib/types";
@@ -55,34 +59,39 @@ export default function RoomMembersPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        {members === null && <p className="text-sm text-slate-500">Cargando miembros…</p>}
+        {members === null && (
+          <>
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </>
+        )}
         {members?.map((member) => (
-          <div
-            key={member.uid}
-            className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
-          >
-            <span className="font-medium text-slate-900">{member.displayName}</span>
+          <Card key={member.uid} className="flex flex-row items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-500">{member.totalPoints} pts</span>
+              <Avatar name={member.displayName} size="sm" />
+              <span className="font-medium text-text">{member.displayName}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-text-muted">{member.totalPoints} pts</span>
               {canModerate && member.uid !== user?.uid && (
                 <Button
                   variant="danger"
+                  size="sm"
                   onClick={() => handleKick(member.uid, member.displayName)}
-                  disabled={busyUid === member.uid}
-                  className="text-xs"
+                  isLoading={busyUid === member.uid}
                 >
                   Expulsar
                 </Button>
               )}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div>
-        <h2 className="mb-2 text-sm font-medium text-slate-900">Actividad de la sala</h2>
+        <h2 className="mb-2 text-sm font-medium text-text">Actividad de la sala</h2>
         <AuditFeed targetType="room" targetId={roomId} />
       </div>
     </div>

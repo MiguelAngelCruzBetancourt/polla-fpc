@@ -1,21 +1,34 @@
 import type { RoomMemberDoc } from "@/lib/types";
+import { Avatar } from "@/components/ui/avatar";
 
-export function RankingTable({ members }: { members: RoomMemberDoc[] }) {
+export function RankingTable({
+  members,
+  currentUid,
+}: {
+  members: RoomMemberDoc[];
+  currentUid?: string;
+}) {
   const rest = members.slice(3);
   if (rest.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1">
-      {rest.map((member, i) => (
-        <div
-          key={member.uid}
-          className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2"
-        >
-          <span className="text-sm text-slate-500">#{i + 4}</span>
-          <span className="flex-1 px-3 font-medium text-slate-900">{member.displayName}</span>
-          <span className="text-sm text-slate-600">{member.totalPoints} pts</span>
-        </div>
-      ))}
+    <div className="flex flex-col overflow-hidden rounded-xl border border-border">
+      {rest.map((member, i) => {
+        const isMe = member.uid === currentUid;
+        return (
+          <div
+            key={member.uid}
+            className={`transition-base flex items-center gap-3 px-4 py-2.5 ${
+              isMe ? "bg-accent-subtle" : i % 2 === 0 ? "bg-surface" : "bg-surface-alt"
+            }`}
+          >
+            <span className="w-6 text-sm text-text-muted">#{i + 4}</span>
+            <Avatar name={member.displayName} size="sm" />
+            <span className="flex-1 truncate font-medium text-text">{member.displayName}</span>
+            <span className="text-sm text-text-muted">{member.totalPoints} pts</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

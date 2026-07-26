@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { auth } from "@/lib/firebase-client";
@@ -46,8 +47,8 @@ export default function LoginPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Iniciar sesión</h1>
-        <p className="text-sm text-slate-500">Entra para ver tus salas y pronosticar.</p>
+        <h1 className="font-heading text-xl font-semibold text-text">Iniciar sesión</h1>
+        <p className="text-sm text-text-muted">Entra para ver tus salas y pronosticar.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -70,20 +71,20 @@ export default function LoginPage() {
           required
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <Alert variant="error">{error}</Alert>}
 
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Entrando…" : "Entrar"}
+        <Button type="submit" isLoading={submitting}>
+          Entrar
         </Button>
       </form>
 
-      <div className="flex flex-col items-center gap-2 text-sm text-slate-500">
-        <Link href="/forgot-password" className="font-medium text-emerald-700">
+      <div className="flex flex-col items-center gap-2 text-sm text-text-muted">
+        <Link href="/forgot-password" className="font-medium text-accent">
           ¿Olvidaste tu contraseña?
         </Link>
         <p>
           ¿No tienes cuenta?{" "}
-          <Link href="/register" className="font-medium text-emerald-700">
+          <Link href="/register" className="font-medium text-accent">
             Regístrate
           </Link>
         </p>

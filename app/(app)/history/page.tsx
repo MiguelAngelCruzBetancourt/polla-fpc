@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebas
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { HistoryTable, type HistoryRow } from "@/components/history-table";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { db } from "@/lib/firebase-client";
 import type { MatchDoc, PredictionDoc } from "@/lib/types";
 
@@ -42,12 +43,15 @@ export default function HistoryPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Mi historial</h1>
-        <p className="text-sm text-slate-500">Tus pronósticos en todas las salas donde participas.</p>
+        <h1 className="font-heading text-2xl font-bold text-text">Mi historial</h1>
+        <p className="text-sm text-text-muted">Tus pronósticos en todas las salas donde participas.</p>
       </div>
 
       {rows === null ? (
-        <p className="text-sm text-slate-500">Cargando historial…</p>
+        <div className="flex flex-col gap-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       ) : (
         <HistoryTable rows={rows} />
       )}

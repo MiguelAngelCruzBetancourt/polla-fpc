@@ -1,10 +1,12 @@
 "use client";
 
 import { collection, getDocs, orderBy, query, Timestamp, where } from "firebase/firestore";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { MatchCard, type RevealedPrediction } from "@/components/match-card";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { getColombiaTodayRangeUtc } from "@/lib/colombia-date";
 import { db } from "@/lib/firebase-client";
 import { getDisplayStatus } from "@/lib/match-status";
@@ -81,11 +83,21 @@ export default function RoomMatchesPage() {
   }, [load]);
 
   if (!user || matches === null || members === null) {
-    return <p className="text-sm text-slate-500">Cargando calendario…</p>;
+    return (
+      <div className="grid gap-3 md:grid-cols-2">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
   }
 
   if (matches.length === 0) {
-    return <p className="text-sm text-slate-500">No hay partidos programados para hoy.</p>;
+    return (
+      <div className="flex flex-col items-center gap-3 py-6 text-center">
+        <Image src="/assets/illustrations/empty-matches.svg" alt="" width={120} height={120} />
+        <p className="text-sm text-text-muted">No hay partidos programados para hoy.</p>
+      </div>
+    );
   }
 
   return (

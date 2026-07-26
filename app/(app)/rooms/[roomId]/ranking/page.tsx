@@ -1,16 +1,21 @@
 "use client";
 
 import { collection, getDocs } from "firebase/firestore";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth-provider";
 import { Podium } from "@/components/podium";
 import { RankingTable } from "@/components/ranking-table";
+import { Alert } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { db } from "@/lib/firebase-client";
 import { getFirstPlaceTie, sortMembers } from "@/lib/ranking";
 import type { RoomMemberDoc } from "@/lib/types";
 
 export default function RoomRankingPage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const { user } = useAuth();
   const [members, setMembers] = useState<RoomMemberDoc[] | null>(null);
 
   useEffect(() => {
@@ -21,10 +26,15 @@ export default function RoomRankingPage() {
   }, [roomId]);
 
   if (members === null) {
-    return <p className="text-sm text-slate-500">Cargando ranking…</p>;
+    return <Skeleton className="h-40 w-full" />;
   }
   if (members.length === 0) {
-    return <p className="text-sm text-slate-500">Todavía no hay miembros en esta sala.</p>;
+    return (
+      <div className="flex flex-col items-center gap-3 py-6 text-center">
+        <Image src="/assets/illustrations/empty-ranking.svg" alt="" width={120} height={120} />
+        <p className="text-sm text-text-muted">Todavía no hay miembros en esta sala.</p>
+      </div>
+    );
   }
 
   const tie = getFirstPlaceTie(members);
@@ -32,14 +42,14 @@ export default function RoomRankingPage() {
   return (
     <div className="flex flex-col gap-6">
       {tie.length > 1 && (
-        <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Alert variant="warning">
           Empate en el primer puesto: el premio se divide en partes iguales entre{" "}
           {tie.map((m) => m.displayName).join(", ")}.
-        </p>
+        </Alert>
       )}
 
       <Podium members={members} />
-      <RankingTable members={members} />
+      <RankingTable members={members} currentUid={user?.uid} />
     </div>
   );
 }

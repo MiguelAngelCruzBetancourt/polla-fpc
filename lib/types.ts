@@ -73,7 +73,8 @@ export type AuditAction =
   | "result_loaded"
   | "member_kicked"
   | "room_code_regenerated"
-  | "historical_data_imported";
+  | "historical_data_imported"
+  | "bonus_points_added";
 
 export interface AuditLogDoc {
   action: AuditAction;

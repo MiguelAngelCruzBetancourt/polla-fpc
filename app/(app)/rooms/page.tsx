@@ -11,11 +11,18 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { Users } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader } from "@/components/ui/card";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { TextField } from "@/components/ui/text-field";
+import { useToast } from "@/components/ui/toast-provider";
 import { db } from "@/lib/firebase-client";
 import { generateRoomCode } from "@/lib/room-code";
 import type { RoomDoc } from "@/lib/types";
@@ -36,6 +43,7 @@ async function generateUniqueRoomCode(): Promise<string> {
 
 export default function RoomsPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [rooms, setRooms] = useState<RoomListItem[] | null>(null);
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -98,6 +106,7 @@ export default function RoomsPage() {
 
       setRoomName("");
       await loadRooms(user.uid);
+      showToast("Sala creada.", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la sala.");
     } finally {
@@ -148,6 +157,7 @@ export default function RoomsPage() {
 
       setJoinCode("");
       await loadRooms(user.uid);
+      showToast("Te uniste a la sala.", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo unir a la sala.");
     } finally {
@@ -158,55 +168,70 @@ export default function RoomsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Mis salas</h1>
-        <p className="text-sm text-slate-500">Crea una sala nueva o únete con un código.</p>
+        <h1 className="font-heading text-2xl font-bold text-text">Mis salas</h1>
+        <p className="text-sm text-text-muted">Crea una sala nueva o únete con un código.</p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <form onSubmit={handleCreate} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4">
-          <h2 className="font-medium text-slate-900">Crear sala</h2>
-          <TextField
-            label="Nombre de la sala"
-            name="roomName"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-          />
-          <Button type="submit" disabled={creating}>
-            {creating ? "Creando…" : "Crear sala"}
-          </Button>
-        </form>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <form onSubmit={handleCreate} className="flex flex-col gap-3 p-4 sm:p-5">
+            <h2 className="font-heading font-semibold text-text">Crear sala</h2>
+            <TextField
+              label="Nombre de la sala"
+              name="roomName"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+            />
+            <Button type="submit" isLoading={creating}>
+              Crear sala
+            </Button>
+          </form>
+        </Card>
 
-        <form onSubmit={handleJoin} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4">
-          <h2 className="font-medium text-slate-900">Unirse con código</h2>
-          <TextField
-            label="Código de sala"
-            name="joinCode"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value)}
-          />
-          <Button type="submit" variant="secondary" disabled={joining}>
-            {joining ? "Uniendo…" : "Unirme"}
-          </Button>
-        </form>
+        <Card>
+          <form onSubmit={handleJoin} className="flex flex-col gap-3 p-4 sm:p-5">
+            <h2 className="font-heading font-semibold text-text">Unirse con código</h2>
+            <TextField
+              label="Código de sala"
+              name="joinCode"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+            />
+            <Button type="submit" variant="outline" isLoading={joining}>
+              Unirme
+            </Button>
+          </form>
+        </Card>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        {rooms === null && <p className="text-sm text-slate-500">Cargando salas…</p>}
-        {rooms?.length === 0 && (
-          <p className="text-sm text-slate-500">Todavía no perteneces a ninguna sala.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rooms === null && (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
         )}
-        {rooms?.map((room) => (
-          <Link
-            key={room.id}
-            href={`/rooms/${room.id}`}
-            className="flex items-center justify-between rounded-xl border border-slate-200 p-4 hover:border-emerald-600"
-          >
-            <div>
-              <p className="font-medium text-slate-900">{room.data.name}</p>
-              <p className="text-xs text-slate-500">Código: {room.data.code}</p>
-            </div>
+        {rooms?.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-6 text-center sm:col-span-2">
+            <Image src="/assets/illustrations/empty-rooms.svg" alt="" width={120} height={120} />
+            <p className="text-sm text-text-muted">Todavía no perteneces a ninguna sala.</p>
+          </div>
+        )}
+        {rooms?.map((room, i) => (
+          <Link key={room.id} href={`/rooms/${room.id}`} className="animate-in block" style={{ animationDelay: `${i * 40}ms` }}>
+            <Card className="transition-base hover:border-accent hover:shadow-md">
+              <CardHeader>
+                <div>
+                  <p className="font-medium text-text">{room.data.name}</p>
+                  <p className="text-xs text-text-muted">Código: {room.data.code}</p>
+                </div>
+                <Badge variant={room.data.status === "open" ? "success" : "warning"} icon={<Users size={12} />}>
+                  {room.data.status === "open" ? "Abierta" : "Cerrada"}
+                </Badge>
+              </CardHeader>
+            </Card>
           </Link>
         ))}
       </div>

@@ -6,12 +6,16 @@ export async function authFetch(path: string, init: RequestInit = {}): Promise<R
     throw new Error("No hay sesión activa.");
   }
 
+  // FormData (ej. subida de archivos) necesita que el navegador fije su propio
+  // Content-Type con el boundary del multipart — forzar application/json lo rompe.
+  const isFormData = init.body instanceof FormData;
+
   return fetch(path, {
     ...init,
     headers: {
       ...init.headers,
       Authorization: `Bearer ${idToken}`,
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
     },
   });
 }

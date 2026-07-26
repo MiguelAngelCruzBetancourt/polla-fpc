@@ -42,36 +42,36 @@ export function PredictionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-slate-500">Local</label>
+        <label className="text-xs text-text-muted">Local</label>
         <input
           type="number"
           min={0}
           max={20}
           value={homeScore}
           onChange={(e) => setHomeScore(e.target.value)}
-          className="h-11 w-16 rounded-lg border border-slate-300 text-center"
+          className="transition-base h-11 w-16 rounded-lg border border-border bg-surface text-center text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           required
         />
       </div>
-      <span className="pb-3 text-slate-400">-</span>
+      <span className="pb-3 text-text-muted">-</span>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-slate-500">Visitante</label>
+        <label className="text-xs text-text-muted">Visitante</label>
         <input
           type="number"
           min={0}
           max={20}
           value={awayScore}
           onChange={(e) => setAwayScore(e.target.value)}
-          className="h-11 w-16 rounded-lg border border-slate-300 text-center"
+          className="transition-base h-11 w-16 rounded-lg border border-border bg-surface text-center text-text focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           required
         />
       </div>
-      <Button type="submit" disabled={submitting} className="ml-2">
-        {submitting ? "Enviando…" : "Enviar"}
+      <Button type="submit" isLoading={submitting} className="ml-2">
+        Enviar
       </Button>
-      {error && <p className="ml-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="ml-2 text-sm text-error">{error}</p>}
     </form>
   );
 }
