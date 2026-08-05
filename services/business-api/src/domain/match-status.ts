@@ -1,8 +1,11 @@
 import type { Timestamp } from "firebase-admin/firestore";
-import type { MatchDoc } from "@polla-fpc/shared-types";
+import {
+  REVEAL_BEFORE_KICKOFF_MS,
+  SUBMISSION_CLOSE_BEFORE_KICKOFF_MS,
+  type MatchDoc,
+} from "@polla-fpc/shared-types";
 
-export const SUBMISSION_CLOSE_BEFORE_KICKOFF_MS = 30 * 60 * 1000; // 30 minutos
-export const REVEAL_BEFORE_KICKOFF_MS = 10 * 60 * 1000; // 10 minutos
+export { REVEAL_BEFORE_KICKOFF_MS, SUBMISSION_CLOSE_BEFORE_KICKOFF_MS };
 
 export type DisplayStatus = "scheduled" | "locked" | "revealed" | "finished" | "cancelled";
 

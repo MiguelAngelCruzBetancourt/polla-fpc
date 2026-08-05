@@ -1,5 +1,12 @@
 import type { Timestamp } from "firebase-admin/firestore";
 
+// Constantes de tiempo del ciclo de vida de un partido, relativas al kickoff —
+// única fuente de verdad, usadas tanto por business-api (cierre/revelado de
+// pronósticos) como por notifications-svc (recordatorios programados).
+export const SUBMISSION_CLOSE_BEFORE_KICKOFF_MS = 30 * 60 * 1000; // 30 minutos
+export const REVEAL_BEFORE_KICKOFF_MS = 10 * 60 * 1000; // 10 minutos
+export const PREDICTION_REMINDER_BEFORE_KICKOFF_MS = 60 * 60 * 1000; // 1 hora
+
 export interface UserDoc {
   displayName: string;
   username: string;

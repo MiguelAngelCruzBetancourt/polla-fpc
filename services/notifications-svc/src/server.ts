@@ -5,6 +5,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { devicesRouter } from "./routes/devices";
 import { eventsRouter } from "./routes/events";
 import { drainOutboxOnce } from "./services/outbox-drain-service";
+import { checkMatchScheduleNotifications } from "./services/match-schedule-service";
 
 const app = express();
 // Sin restricción de origen — solo corre en local para pruebas (ver services/test-page).
@@ -32,3 +33,14 @@ const drainIntervalMs = Number(process.env.OUTBOX_DRAIN_INTERVAL_MS ?? 15000);
 setInterval(() => {
   drainOutboxOnce().catch((err) => console.error("[notifications-svc] fallo en drenaje de outbox:", err));
 }, drainIntervalMs);
+
+// Segundo chequeo periódico, mismo patrón que el de arriba: revisa partidos
+// próximos a iniciar para recordatorios de pronóstico y aviso de disponibilidad
+// (eventos disparados por tiempo, no por una acción de negocio puntual — no
+// pasan por la outbox). Ver services/notifications-svc/src/services/match-schedule-service.ts.
+const scheduleIntervalMs = Number(process.env.MATCH_SCHEDULE_INTERVAL_MS ?? 60000);
+setInterval(() => {
+  checkMatchScheduleNotifications().catch((err) =>
+    console.error("[notifications-svc] fallo en chequeo de horarios de partidos:", err),
+  );
+}, scheduleIntervalMs);

@@ -13,7 +13,8 @@
     "dotenv": "^16.4.5",
     "zod": "^4.4.3",
     "cors": "^2.8.5",
-    "@polla-fpc/internal-auth": "file:../shared/internal-auth"
+    "@polla-fpc/internal-auth": "file:../shared/internal-auth",
+    "@polla-fpc/shared-types": "file:../shared/types"
   },
   "devDependencies": {
     "typescript": "^5",

@@ -1,6 +1,7 @@
 import { adminDb, adminMessaging } from "../infrastructure/firebase-admin";
 import type { PushMessage } from "../domain/events";
 import { listTokensForUid, removeDevice } from "./device-service";
+import { getRoomMemberUids } from "./room-members-service";
 
 type EventHandler = (payload: Record<string, unknown>) => Promise<PushMessage[]>;
 
@@ -8,22 +9,21 @@ type EventHandler = (payload: Record<string, unknown>) => Promise<PushMessage[]>
 // acá, sin tocar el resto del servicio (drenaje de outbox, envío FCM, etc.).
 const handlers: Record<string, EventHandler> = {
   "match.result_loaded": async (payload) => {
-    const { matchId, homeTeam, awayTeam, homeScore, awayScore } = payload as {
-      matchId: string;
+    const { roomId, homeTeam, awayTeam, homeScore, awayScore } = payload as {
+      roomId: string;
       homeTeam: string;
       awayTeam: string;
       homeScore: number;
       awayScore: number;
     };
 
-    // Lectura de solo lectura a "predictions", propiedad de business-api —
-    // permitido bajo el principio "single writer", que solo restringe escrituras.
-    const predictionsSnap = await adminDb().collection("predictions").where("matchId", "==", matchId).get();
-    const uids = new Set(predictionsSnap.docs.map((doc) => doc.data().uid as string));
+    // A toda la sala, no solo a quienes pronosticaron ese partido — la tabla
+    // de posiciones que se actualiza es de toda la sala.
+    const uids = await getRoomMemberUids(roomId);
 
-    const title = "Resultado cargado";
-    const body = `${homeTeam} ${homeScore} - ${awayScore} ${awayTeam}`;
-    return [...uids].map((uid) => ({ uid, title, body }));
+    const title = "Final del partido";
+    const body = `${homeTeam} ${homeScore} - ${awayScore} ${awayTeam}. Ya puedes ver la tabla de posiciones actualizada.`;
+    return uids.map((uid) => ({ uid, title, body }));
   },
 
   "room.member_kicked": async (payload) => {
@@ -47,6 +47,31 @@ export async function dispatchEvent(type: string, payload: Record<string, unknow
 
   const messages = await handler(payload);
   await Promise.all(messages.map(sendPushToUid));
+}
+
+interface MatchSummary {
+  homeTeam: string;
+  awayTeam: string;
+}
+
+/**
+ * Disparado por match-schedule-service (chequeo por tiempo, no por outbox) 1h
+ * antes del kickoff, solo a quienes todavía no pronosticaron ese partido.
+ */
+export async function notifyPredictionReminder(match: MatchSummary, uids: string[]): Promise<void> {
+  const title = "⏰ Falta una hora para el partido";
+  const body = `Recuerda realizar tu pronóstico para ${match.homeTeam} vs ${match.awayTeam} antes de que el plazo cierre.`;
+  await Promise.all(uids.map((uid) => sendPushToUid({ uid, title, body })));
+}
+
+/**
+ * Disparado por match-schedule-service 10 minutos antes del kickoff, a toda
+ * la sala. No incluye los pronósticos en sí, solo avisa que ya se pueden ver.
+ */
+export async function notifyPredictionsAvailable(match: MatchSummary, uids: string[]): Promise<void> {
+  const title = "👀 Pronósticos disponibles";
+  const body = `Los pronósticos de todos los participantes para ${match.homeTeam} vs ${match.awayTeam} ya están disponibles. Entra a la app para verlos.`;
+  await Promise.all(uids.map((uid) => sendPushToUid({ uid, title, body })));
 }
 
 async function sendPushToUid(message: PushMessage): Promise<void> {
