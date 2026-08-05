@@ -60,3 +60,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# services/ (scaffold local de seguridad/negocio/notificaciones/partidos en vivo)
+services/**/node_modules
+services/**/dist
+!**/.env.local.example

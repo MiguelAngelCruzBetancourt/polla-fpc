@@ -11,6 +11,17 @@ const nextConfig: NextConfig = {
     contentDispositionType: "inline",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  // Inerte salvo que LOCAL_SERVICES=true esté definida en el entorno (no
+  // versionado) — reenvía /api/* hacia business-api (services/business-api) en
+  // vez de las API routes propias. BUSINESS_API_URL permite apuntar tanto a
+  // una instancia local (default) como a una desplegada (ej. Railway).
+  async rewrites() {
+    if (process.env.LOCAL_SERVICES !== "true") return { beforeFiles: [] };
+    const businessApiUrl = process.env.BUSINESS_API_URL ?? "http://localhost:4002";
+    return {
+      beforeFiles: [{ source: "/api/:path*", destination: `${businessApiUrl}/:path*` }],
+    };
+  },
 };
 
 const withPWA = withPWAInit({
