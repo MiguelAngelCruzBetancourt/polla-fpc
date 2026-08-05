@@ -73,10 +73,9 @@
 <body>
 <h1>Polla FPC — pruebas locales de servicios</h1>
 <p>
-  Esta página solo funciona con el Firebase Emulator Suite y los 4 servicios
+  Esta página solo funciona con el Firebase Emulator Suite y los 3 servicios
   (<code>security-api</code> :4001, <code>business-api</code> :4002,
-  <code>notifications-svc</code> :4003, <code>live-matches-svc</code> :4004)
-  corriendo en local. No toca producción ni Vercel.
+  <code>notifications-svc</code> :4003) corriendo en local. No toca producción ni Vercel.
 </p>
 
 <h2>Estado</h2>
@@ -140,25 +139,6 @@
   <button type="submit">Kick</button>
 </form>
 
-<h2>8. live-matches-svc — ligas, mapeo y marcador en vivo</h2>
-<form id="form-add-league">
-  <label>leagueExternalId <input name="leagueExternalId" value="239" /></label>
-  <label>leagueName <input name="leagueName" value="Liga BetPlay" /></label>
-  <button type="submit">Agregar liga</button>
-</form>
-<form id="form-add-mapping">
-  <label>leagueExternalId <input name="leagueExternalId" value="239" /></label>
-  <label>internalMatchId <input name="internalMatchId" /></label>
-  <label>externalMatchId <input name="externalMatchId" value="999999" /></label>
-  <button type="submit">Crear mapeo</button>
-</form>
-<form id="form-live-update">
-  <label>matchId <input name="matchId" /></label>
-  <label>homeScore <input name="homeScore" value="1" /></label>
-  <label>awayScore <input name="awayScore" value="0" /></label>
-  <button type="submit">Simular live-update</button>
-</form>
-
 <h2>Log</h2>
 <div id="log"></div>
 
@@ -166,7 +146,6 @@
   const SECURITY = "http://localhost:4001";
   const BUSINESS = "http://localhost:4002";
   const NOTIFICATIONS = "http://localhost:4003";
-  const LIVE_MATCHES = "http://localhost:4004";
   const AUTH_EMULATOR = "http://localhost:9099/identitytoolkit.googleapis.com/v1";
   const AUTH_API_KEY = "fake-api-key";
 
@@ -265,10 +244,9 @@
     });
     if (ok && data.matchIds?.[0]) {
       state.matchId = data.matchIds[0];
-      for (const id of ["form-predict", "form-grade", "form-live-update"]) {
+      for (const id of ["form-predict", "form-grade"]) {
         document.querySelector(`#${id} input[name="matchId"]`).value = state.matchId;
       }
-      document.querySelector('#form-add-mapping input[name="internalMatchId"]').value = state.matchId;
     }
     log("Crear partido", ok, data);
   });
@@ -311,26 +289,6 @@
       body: { uid },
     });
     log("Kick de sala", ok, data);
-  });
-
-  // 8. live-matches-svc
-  onSubmit("form-add-league", async ({ leagueExternalId, leagueName }) => {
-    const { ok, data } = await call("POST", `${LIVE_MATCHES}/leagues`, {
-      body: { leagueExternalId, leagueName },
-    });
-    log("Agregar liga", ok, data);
-  });
-  onSubmit("form-add-mapping", async ({ leagueExternalId, internalMatchId, externalMatchId }) => {
-    const { ok, data } = await call("POST", `${LIVE_MATCHES}/leagues/${leagueExternalId}/mappings`, {
-      body: { internalMatchId, externalMatchId },
-    });
-    log("Crear mapeo", ok, data);
-  });
-  onSubmit("form-live-update", async ({ matchId, homeScore, awayScore }) => {
-    const { ok, data } = await call("POST", `${BUSINESS}/internal/matches/${matchId}/live-update`, {
-      body: { homeScore: Number(homeScore), awayScore: Number(awayScore) },
-    });
-    log("Simular live-update", ok, data);
   });
 </script>
 </body>

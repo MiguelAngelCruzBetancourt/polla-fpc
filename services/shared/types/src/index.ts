@@ -59,10 +59,6 @@ export interface MatchDoc {
   cancelledBy: string | null;
   cancelledAt: Timestamp | null;
   imported: boolean | null;
-  // Alimentado por live-matches-svc; nunca por el flujo manual de calificación.
-  liveHomeScore: number | null;
-  liveAwayScore: number | null;
-  liveUpdatedAt: Timestamp | null;
 }
 
 export interface PredictionDoc {

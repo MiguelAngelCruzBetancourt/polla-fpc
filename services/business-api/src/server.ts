@@ -3,7 +3,6 @@ config({ path: ".env.local" });
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { adminRouter } from "./routes/admin";
-import { internalRouter } from "./routes/internal";
 import { matchesRouter } from "./routes/matches";
 import { predictionsRouter } from "./routes/predictions";
 import { roomsRouter } from "./routes/rooms";
@@ -19,7 +18,6 @@ app.use(matchesRouter);
 app.use(predictionsRouter);
 app.use(roomsRouter);
 app.use(adminRouter);
-app.use(internalRouter);
 
 // Manejador de errores central — MatchServiceError ya se traduce a status
 // específico en cada ruta; cualquier otro error cae aquí como 500.

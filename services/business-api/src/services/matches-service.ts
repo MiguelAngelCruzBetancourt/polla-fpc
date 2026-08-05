@@ -54,9 +54,6 @@ export async function createMatchesService(
       cancelledBy: null,
       cancelledAt: null,
       imported: null,
-      liveHomeScore: null,
-      liveAwayScore: null,
-      liveUpdatedAt: null,
     });
 
     batch.set(db.collection("auditLog").doc(), {
@@ -269,35 +266,4 @@ export async function gradeMatchResultService(
   await auditBatch.commit();
 
   return { predictionsGraded: predictionsSnap.size };
-}
-
-/**
- * Consumido solo por live-matches-svc (POST /internal/matches/:id/live-update).
- * A propósito NO califica el partido ni toca officialHomeScore/status —
- * solo guarda un marcador "en vivo" informativo. La calificación final sigue
- * pasando por gradeMatchResultService, con confirmación humana, hasta que se
- * gane confianza en la fuente externa (ver Fase 2 del plan de migración).
- */
-export async function updateLiveScoreService(
-  db: FirebaseFirestore.Firestore,
-  matchId: string,
-  homeScore: number,
-  awayScore: number,
-): Promise<void> {
-  const matchRef = db.collection("matches").doc(matchId);
-  const matchSnap = await matchRef.get();
-  if (!matchSnap.exists) {
-    throw new MatchServiceError(404, "El partido no existe.");
-  }
-
-  const match = matchSnap.data()!;
-  if (match.status === "finished" || match.status === "cancelled") {
-    return; // nada que actualizar en vivo, ya se cerró por el flujo manual
-  }
-
-  await matchRef.update({
-    liveHomeScore: homeScore,
-    liveAwayScore: awayScore,
-    liveUpdatedAt: Timestamp.now(),
-  });
 }
