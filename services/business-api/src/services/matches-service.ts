@@ -171,6 +171,94 @@ export async function cancelMatchService(
   await batch.commit();
 }
 
+export async function postponeMatchService(
+  db: FirebaseFirestore.Firestore,
+  actorUid: string,
+  matchId: string,
+): Promise<{ predictionsDeleted: number }> {
+  const matchRef = db.collection("matches").doc(matchId);
+  const matchSnap = await matchRef.get();
+  if (!matchSnap.exists) {
+    throw new MatchServiceError(404, "El partido no existe.");
+  }
+
+  const match = matchSnap.data()!;
+  if (match.status === "finished" || match.status === "cancelled") {
+    throw new MatchServiceError(409, "El partido ya está finalizado o cancelado, no se puede aplazar.");
+  }
+  if (match.status === "postponed") {
+    throw new MatchServiceError(409, "El partido ya está aplazado.");
+  }
+
+  const now = Timestamp.now();
+
+  // Borra todos los pronósticos huérfanos del partido — evita que quede
+  // "atascado" en scheduled con data de muestra que nunca se calificará
+  // (ver Prompt de auditoría: partidos aplazados en la vida real que nunca
+  // recibieron resultado oficial).
+  const predictionsSnap = await db.collection("predictions").where("matchId", "==", matchId).get();
+  const deleteOps: Array<(batch: FirebaseFirestore.WriteBatch) => void> = predictionsSnap.docs.map(
+    (doc) => (batch) => batch.delete(doc.ref),
+  );
+  await commitInChunks(db, deleteOps);
+
+  const batch = db.batch();
+  batch.update(matchRef, {
+    status: "postponed",
+    lastEditedBy: actorUid,
+    lastEditedAt: now,
+  });
+  batch.set(db.collection("auditLog").doc(), {
+    action: "match_postponed",
+    performedBy: actorUid,
+    performedAt: now,
+    targetType: "match",
+    targetId: matchId,
+    details: { predictionsDeleted: predictionsSnap.size },
+  });
+  await batch.commit();
+
+  return { predictionsDeleted: predictionsSnap.size };
+}
+
+export async function rescheduleMatchService(
+  db: FirebaseFirestore.Firestore,
+  actorUid: string,
+  matchId: string,
+  kickoff: string, // ISO
+): Promise<void> {
+  const matchRef = db.collection("matches").doc(matchId);
+  const matchSnap = await matchRef.get();
+  if (!matchSnap.exists) {
+    throw new MatchServiceError(404, "El partido no existe.");
+  }
+
+  const match = matchSnap.data()!;
+  if (match.status !== "postponed") {
+    throw new MatchServiceError(409, "Solo se puede reprogramar un partido aplazado.");
+  }
+
+  const now = Timestamp.now();
+  const newKickoff = Timestamp.fromDate(new Date(kickoff));
+
+  const batch = db.batch();
+  batch.update(matchRef, {
+    status: "scheduled",
+    kickoff: newKickoff,
+    lastEditedBy: actorUid,
+    lastEditedAt: now,
+  });
+  batch.set(db.collection("auditLog").doc(), {
+    action: "match_rescheduled",
+    performedBy: actorUid,
+    performedAt: now,
+    targetType: "match",
+    targetId: matchId,
+    details: { newKickoff: kickoff },
+  });
+  await batch.commit();
+}
+
 export async function gradeMatchResultService(
   db: FirebaseFirestore.Firestore,
   actorUid: string,
@@ -229,20 +317,28 @@ export async function gradeMatchResultService(
 
   await commitInChunks(db, predictionOps);
 
-  const memberUpdateOps: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
-  for (const [uid, increment] of memberIncrements) {
-    const memberRef = db.collection("rooms").doc(match.roomId).collection("members").doc(uid);
-    const memberSnap = await memberRef.get();
-    if (!memberSnap.exists) continue;
+  // Lectura en paralelo (en vez de un .get() secuencial por miembro dentro
+  // del for...of) — reduce latencia/contención en salas con muchos
+  // pronósticos. Sigue siendo N lecturas de cuota, solo cambia que no son
+  // seriales.
+  const memberUids = [...memberIncrements.keys()];
+  const memberRefs = memberUids.map((uid) =>
+    db.collection("rooms").doc(match.roomId).collection("members").doc(uid),
+  );
+  const memberSnaps = memberRefs.length > 0 ? await db.getAll(...memberRefs) : [];
 
+  const memberUpdateOps: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
+  memberSnaps.forEach((memberSnap, i) => {
+    if (!memberSnap.exists) return;
+    const increment = memberIncrements.get(memberUids[i]!)!;
     memberUpdateOps.push((batch) => {
-      batch.update(memberRef, {
+      batch.update(memberSnap.ref, {
         totalPoints: FieldValue.increment(increment.totalPoints),
         exactCount: FieldValue.increment(increment.exactCount),
         winnerCount: FieldValue.increment(increment.winnerCount),
       });
     });
-  }
+  });
   await commitInChunks(db, memberUpdateOps);
 
   const auditBatch = db.batch();

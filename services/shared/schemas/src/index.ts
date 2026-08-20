@@ -23,6 +23,8 @@ export const editMatchSchema = z.discriminatedUnion("action", [
     kickoff: z.string().min(1).optional(),
     jornada: z.number().int().positive().optional(),
   }),
+  z.object({ action: z.literal("postpone") }),
+  z.object({ action: z.literal("reschedule"), kickoff: z.string().min(1) }),
 ]);
 
 export const resultSchema = z.object({

@@ -26,15 +26,25 @@ interface UpcomingMatch {
  * eventos disparados por tiempo, no por una acción de negocio puntual, por
  * eso se resuelven acá con un chequeo periódico en vez del mecanismo de outbox.
  */
+const STALE_MATCH_FLOOR_MS = 24 * 60 * 60 * 1000; // 24 horas
+
 export async function checkMatchScheduleNotifications(): Promise<void> {
   const now = Date.now();
   const horizon = Timestamp.fromMillis(now + PREDICTION_REMINDER_BEFORE_KICKOFF_MS);
+  // Partidos con kickoff más antiguo que esto ya deberían haber sido
+  // calificados, cancelados o aplazados por un admin — no tiene sentido
+  // seguir escaneándolos en cada tick. Sin esta cota, un partido que queda
+  // huérfano en "scheduled" (ej. aplazado en la vida real sin resolver acá)
+  // se re-lee para siempre, cada minuto, agregando presión de lectura
+  // innecesaria a Firestore.
+  const staleFloor = Timestamp.fromMillis(now - STALE_MATCH_FLOOR_MS);
 
   // Nota: igual que con outboxEvents, esta combinación (status== + kickoff<=)
   // puede pedir un índice compuesto en Firestore real — el emulador no lo exige.
   const snap = await adminDb()
     .collection("matches")
     .where("status", "==", "scheduled")
+    .where("kickoff", ">=", staleFloor)
     .where("kickoff", "<=", horizon)
     .get();
 

@@ -32,7 +32,7 @@ export interface RoomMemberDoc {
   winnerCount: number;
 }
 
-export type MatchStatus = "scheduled" | "closed" | "finished" | "cancelled";
+export type MatchStatus = "scheduled" | "closed" | "finished" | "cancelled" | "postponed";
 
 export interface MatchDoc {
   roomId: string; // el partido pertenece a esta sala; no es global
@@ -68,6 +68,8 @@ export type AuditAction =
   | "match_created"
   | "match_edited"
   | "match_cancelled"
+  | "match_postponed"
+  | "match_rescheduled"
   | "result_loaded"
   | "member_kicked"
   | "member_left"

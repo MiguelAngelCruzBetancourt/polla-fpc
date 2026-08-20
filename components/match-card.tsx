@@ -2,7 +2,7 @@
 
 import dayjs from "dayjs";
 import "dayjs/locale/es";
-import { CheckCircle2, Clock, Lock, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Lock, PauseCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 import { AuditFeed } from "@/components/audit-feed";
 import { PredictionForm } from "@/components/prediction-form";
@@ -24,6 +24,7 @@ const STATUS_META: Record<
   revealed: { label: "Revelado", variant: "accent", icon: CheckCircle2 },
   finished: { label: "Finalizado", variant: "success", icon: CheckCircle2 },
   cancelled: { label: "Cancelado", variant: "error", icon: XCircle },
+  postponed: { label: "Aplazado", variant: "warning", icon: PauseCircle },
 };
 
 export interface RevealedPrediction {
@@ -75,6 +76,10 @@ export function MatchCard({
       <CardBody>
         {displayStatus === "cancelled" && (
           <p className="text-sm text-text-muted">Cancelado — no cuenta para la calificación.</p>
+        )}
+
+        {displayStatus === "postponed" && (
+          <p className="text-sm text-text-muted">Partido aplazado — nueva fecha por confirmar.</p>
         )}
 
         {displayStatus === "scheduled" && (

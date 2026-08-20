@@ -8,6 +8,8 @@ import {
   cancelMatchService,
   createMatchesService,
   gradeMatchResultService,
+  postponeMatchService,
+  rescheduleMatchService,
   updateMatchService,
 } from "../services/matches-service";
 
@@ -46,6 +48,10 @@ matchesRouter.patch(
     try {
       if (parsed.data.action === "cancel") {
         await cancelMatchService(adminDb(), req.auth!.uid, req.params.matchId);
+      } else if (parsed.data.action === "postpone") {
+        await postponeMatchService(adminDb(), req.auth!.uid, req.params.matchId);
+      } else if (parsed.data.action === "reschedule") {
+        await rescheduleMatchService(adminDb(), req.auth!.uid, req.params.matchId, parsed.data.kickoff);
       } else {
         const { action: _action, ...fields } = parsed.data;
         void _action;
