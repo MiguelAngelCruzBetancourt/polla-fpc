@@ -27,20 +27,52 @@ app.listen(port, () => {
   console.log(`[notifications-svc] escuchando en http://localhost:${port}`);
 });
 
+/**
+ * Reprograma `task` con backoff exponencial: cada fallo consecutivo duplica
+ * la espera hasta `maxIntervalMs`; un éxito la resetea a `baseIntervalMs`.
+ * Evita martillar Firestore cada pocos segundos cuando la causa del fallo es
+ * algo sostenido (ej. cuota de Firestore agotada, RESOURCE_EXHAUSTED) — en
+ * ese escenario un setInterval fijo solo suma más intentos fallidos contra
+ * una cuota que ya está en cero, sin acelerar la recuperación.
+ */
+function scheduleWithBackoff(
+  label: string,
+  task: () => Promise<unknown>,
+  baseIntervalMs: number,
+  maxIntervalMs: number,
+) {
+  let currentDelayMs = baseIntervalMs;
+
+  const run = () => {
+    task()
+      .then(() => {
+        currentDelayMs = baseIntervalMs;
+      })
+      .catch((err) => {
+        console.error(`[notifications-svc] fallo en ${label}:`, err);
+        currentDelayMs = Math.min(currentDelayMs * 2, maxIntervalMs);
+      })
+      .finally(() => {
+        setTimeout(run, currentDelayMs);
+      });
+  };
+
+  setTimeout(run, baseIntervalMs);
+}
+
 // En local simula el cron de drenaje de outbox que en producción correría en
 // el proveedor de contenedores (Railway). Ver services/notifications-svc/src/services/outbox-drain-service.ts.
 const drainIntervalMs = Number(process.env.OUTBOX_DRAIN_INTERVAL_MS ?? 15000);
-setInterval(() => {
-  drainOutboxOnce().catch((err) => console.error("[notifications-svc] fallo en drenaje de outbox:", err));
-}, drainIntervalMs);
+scheduleWithBackoff("drenaje de outbox", drainOutboxOnce, drainIntervalMs, 5 * 60 * 1000);
 
 // Segundo chequeo periódico, mismo patrón que el de arriba: revisa partidos
 // próximos a iniciar para recordatorios de pronóstico y aviso de disponibilidad
 // (eventos disparados por tiempo, no por una acción de negocio puntual — no
 // pasan por la outbox). Ver services/notifications-svc/src/services/match-schedule-service.ts.
 const scheduleIntervalMs = Number(process.env.MATCH_SCHEDULE_INTERVAL_MS ?? 60000);
-setInterval(() => {
-  checkMatchScheduleNotifications().catch((err) =>
-    console.error("[notifications-svc] fallo en chequeo de horarios de partidos:", err),
-  );
-}, scheduleIntervalMs);
+scheduleWithBackoff(
+  "chequeo de horarios de partidos",
+  checkMatchScheduleNotifications,
+  scheduleIntervalMs,
+  15 * 60 * 1000,
+);
