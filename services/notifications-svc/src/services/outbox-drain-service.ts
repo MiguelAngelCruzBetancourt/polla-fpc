@@ -6,9 +6,10 @@ const BATCH_LIMIT = 25;
 
 /**
  * Drena services/business-api/src/infrastructure/outbox.ts::queueOutboxEvent.
- * En local se llama desde un setInterval en server.ts; en el proveedor de
- * contenedores (Railway) esto se convierte en un cron job real que golpea
- * este mismo código (o un endpoint que lo invoque).
+ * En local se llama desde un setInterval en server.ts (ver USE_EXTERNAL_SCHEDULER).
+ * En producción, un cron externo (GitHub Actions) golpea
+ * POST /internal/outbox/drain-now (protegido por CRON_SECRET), que invoca
+ * esta misma función.
  */
 export async function drainOutboxOnce(): Promise<{ processed: number; failed: number }> {
   // Nota: esta combinación where(processedAt) + orderBy(createdAt) necesita un

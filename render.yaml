@@ -1,0 +1,72 @@
+# Blueprint de Render para los 3 microservicios backend (frontend sigue en Vercel).
+# Ver DEPLOY.md para el proceso completo de despliegue.
+#
+# rootDir se deja en la raíz del repo (default) a propósito: cada servicio
+# depende de paquetes hermanos vía "file:../shared/..." en su package.json
+# (ver services/shared/), y Render NO da acceso a nada fuera del Root
+# Directory configurado. Por eso el build/start command hace "cd services/<svc>"
+# explícitamente en vez de fijar un rootDir por servicio.
+#
+# Las variables con sync: false no se guardan en este archivo ni en git —
+# Render las pide una sola vez al aplicar el Blueprint.
+
+services:
+  - name: polla-security-api
+    type: web
+    runtime: node
+    plan: free
+    buildCommand: cd services/security-api && npm install && npm run build
+    startCommand: cd services/security-api && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: FIREBASE_ADMIN_PROJECT_ID
+        value: pollabetplay
+      - key: FIREBASE_ADMIN_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_ADMIN_PRIVATE_KEY
+        sync: false
+      - key: INTERNAL_AUTH_SECRET
+        sync: false
+
+  - name: polla-business-api
+    type: web
+    runtime: node
+    plan: free
+    buildCommand: cd services/business-api && npm install && npm run build
+    startCommand: cd services/business-api && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: FIREBASE_ADMIN_PROJECT_ID
+        value: pollabetplay
+      - key: FIREBASE_ADMIN_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_ADMIN_PRIVATE_KEY
+        sync: false
+      # Pegar la URL pública de polla-security-api una vez desplegado (ver DEPLOY.md).
+      - key: SECURITY_API_URL
+        sync: false
+
+  - name: polla-notifications-svc
+    type: web
+    runtime: node
+    plan: free
+    buildCommand: cd services/notifications-svc && npm install && npm run build
+    startCommand: cd services/notifications-svc && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: FIREBASE_ADMIN_PROJECT_ID
+        value: pollabetplay
+      - key: FIREBASE_ADMIN_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_ADMIN_PRIVATE_KEY
+        sync: false
+      # Pegar la URL pública de polla-security-api una vez desplegado (ver DEPLOY.md).
+      - key: SECURITY_API_URL
+        sync: false
+      # Los jobs de background se disparan por GitHub Actions, no por setInterval
+      # interno (ver services/notifications-svc/src/server.ts).
+      - key: USE_EXTERNAL_SCHEDULER
+        value: "true"
+      # Debe coincidir con el secret NOTIFICATIONS_CRON_SECRET en GitHub Actions.
+      - key: CRON_SECRET
+        sync: false

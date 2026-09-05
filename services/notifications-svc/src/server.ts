@@ -60,19 +60,26 @@ function scheduleWithBackoff(
   setTimeout(run, baseIntervalMs);
 }
 
-// En local simula el cron de drenaje de outbox que en producción correría en
-// el proveedor de contenedores (Railway). Ver services/notifications-svc/src/services/outbox-drain-service.ts.
-const drainIntervalMs = Number(process.env.OUTBOX_DRAIN_INTERVAL_MS ?? 15000);
-scheduleWithBackoff("drenaje de outbox", drainOutboxOnce, drainIntervalMs, 5 * 60 * 1000);
+// En producción (USE_EXTERNAL_SCHEDULER=true) estos dos jobs NO corren como
+// setInterval interno — los dispara un cron externo gratuito (GitHub Actions,
+// ver .github/workflows/notifications-cron.yml) llamando a
+// POST /internal/outbox/drain-now y POST /internal/match-schedule/check-now
+// (protegidos por CRON_SECRET, ver services/notifications-svc/src/middleware/cron-auth-middleware.ts).
+// Esto evita depender de que el proceso quede vivo de forma continua, algo
+// que no todo proveedor de hosting gratuito garantiza. En desarrollo local
+// (USE_EXTERNAL_SCHEDULER sin definir) el comportamiento no cambia: se sigue
+// simulando el cron con setInterval+backoff dentro del propio proceso.
+const useExternalScheduler = process.env.USE_EXTERNAL_SCHEDULER === "true";
 
-// Segundo chequeo periódico, mismo patrón que el de arriba: revisa partidos
-// próximos a iniciar para recordatorios de pronóstico y aviso de disponibilidad
-// (eventos disparados por tiempo, no por una acción de negocio puntual — no
-// pasan por la outbox). Ver services/notifications-svc/src/services/match-schedule-service.ts.
-const scheduleIntervalMs = Number(process.env.MATCH_SCHEDULE_INTERVAL_MS ?? 60000);
-scheduleWithBackoff(
-  "chequeo de horarios de partidos",
-  checkMatchScheduleNotifications,
-  scheduleIntervalMs,
-  15 * 60 * 1000,
-);
+if (!useExternalScheduler) {
+  const drainIntervalMs = Number(process.env.OUTBOX_DRAIN_INTERVAL_MS ?? 15000);
+  scheduleWithBackoff("drenaje de outbox", drainOutboxOnce, drainIntervalMs, 5 * 60 * 1000);
+
+  const scheduleIntervalMs = Number(process.env.MATCH_SCHEDULE_INTERVAL_MS ?? 60000);
+  scheduleWithBackoff(
+    "chequeo de horarios de partidos",
+    checkMatchScheduleNotifications,
+    scheduleIntervalMs,
+    15 * 60 * 1000,
+  );
+}

@@ -28,7 +28,11 @@ interface UpcomingMatch {
  */
 const STALE_MATCH_FLOOR_MS = 24 * 60 * 60 * 1000; // 24 horas
 
-export async function checkMatchScheduleNotifications(): Promise<void> {
+export async function checkMatchScheduleNotifications(): Promise<{
+  matchesScanned: number;
+  remindersSent: number;
+  availabilityNoticesSent: number;
+}> {
   const now = Date.now();
   const horizon = Timestamp.fromMillis(now + PREDICTION_REMINDER_BEFORE_KICKOFF_MS);
   // Partidos con kickoff más antiguo que esto ya deberían haber sido
@@ -59,18 +63,25 @@ export async function checkMatchScheduleNotifications(): Promise<void> {
     };
   });
 
+  let remindersSent = 0;
+  let availabilityNoticesSent = 0;
+
   for (const match of matches) {
     const msUntilKickoff = match.kickoffMs - now;
-    await Promise.all([
+    const [reminderSent, availabilitySent] = await Promise.all([
       maybeSendPredictionReminder(match, msUntilKickoff),
       maybeSendPredictionsAvailable(match, msUntilKickoff),
     ]);
+    if (reminderSent) remindersSent += 1;
+    if (availabilitySent) availabilityNoticesSent += 1;
   }
+
+  return { matchesScanned: matches.length, remindersSent, availabilityNoticesSent };
 }
 
-async function maybeSendPredictionReminder(match: UpcomingMatch, msUntilKickoff: number): Promise<void> {
-  if (msUntilKickoff > PREDICTION_REMINDER_BEFORE_KICKOFF_MS) return;
-  if (await wasNotificationSent(match.id, PREDICTION_REMINDER_TYPE)) return;
+async function maybeSendPredictionReminder(match: UpcomingMatch, msUntilKickoff: number): Promise<boolean> {
+  if (msUntilKickoff > PREDICTION_REMINDER_BEFORE_KICKOFF_MS) return false;
+  if (await wasNotificationSent(match.id, PREDICTION_REMINDER_TYPE)) return false;
 
   const memberUids = await getRoomMemberUids(match.roomId);
   const predictedUids = await getUidsWithPrediction(match.id);
@@ -81,17 +92,19 @@ async function maybeSendPredictionReminder(match: UpcomingMatch, msUntilKickoff:
     await notifyPredictionReminder(match, pendingUids);
   }
   await markNotificationSent(match.id, PREDICTION_REMINDER_TYPE);
+  return true;
 }
 
-async function maybeSendPredictionsAvailable(match: UpcomingMatch, msUntilKickoff: number): Promise<void> {
-  if (msUntilKickoff > REVEAL_BEFORE_KICKOFF_MS) return;
-  if (await wasNotificationSent(match.id, PREDICTIONS_AVAILABLE_TYPE)) return;
+async function maybeSendPredictionsAvailable(match: UpcomingMatch, msUntilKickoff: number): Promise<boolean> {
+  if (msUntilKickoff > REVEAL_BEFORE_KICKOFF_MS) return false;
+  if (await wasNotificationSent(match.id, PREDICTIONS_AVAILABLE_TYPE)) return false;
 
   const memberUids = await getRoomMemberUids(match.roomId);
   if (memberUids.length > 0) {
     await notifyPredictionsAvailable(match, memberUids);
   }
   await markNotificationSent(match.id, PREDICTIONS_AVAILABLE_TYPE);
+  return true;
 }
 
 async function getUidsWithPrediction(matchId: string): Promise<Set<string>> {

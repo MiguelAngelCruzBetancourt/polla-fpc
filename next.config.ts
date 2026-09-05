@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   },
   // /api/* ya no tiene route handlers propios (ver services/business-api) — todo
   // se reenvía ahí. BUSINESS_API_URL permite apuntar tanto a una instancia local
-  // (default) como a una desplegada (ej. Railway).
+  // (default) como a una desplegada (ej. Render, ver DEPLOY.md).
   async rewrites() {
     const businessApiUrl = process.env.BUSINESS_API_URL ?? "http://localhost:4002";
     return {
