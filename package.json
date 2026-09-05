@@ -32,5 +32,9 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5"
+  },
+  "_comment_overrides": "jose se fija en 5.x porque jwks-rsa (dependencia transitiva de firebase-admin) lo carga con require() de CommonJS. jose 6.x es ESM-only y rompe en runtime con ERR_REQUIRE_ESM en Vercel. NO quitar este override.",
+  "overrides": {
+    "jose": "5.10.0"
   }
 }

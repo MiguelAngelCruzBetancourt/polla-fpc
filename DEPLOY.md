@@ -67,6 +67,20 @@ Los índices compuestos que necesitan los jobs (`outboxEvents(processedAt, creat
 2. Actualizarlo en Vercel y hacer Redeploy.
 3. Actualizar el secret `NOTIFICATIONS_CRON_SECRET` en GitHub Actions.
 
+## No quitar el override de `jose` en `package.json`
+
+```json
+"overrides": { "jose": "5.10.0" }
+```
+
+`firebase-admin` depende de `jwks-rsa`, que carga `jose` con `require()` de CommonJS. Desde la versión 6, `jose` es **ESM-only**, así que sin este pin el runtime de Vercel falla con `ERR_REQUIRE_ESM` al cargar cualquier módulo que importe `firebase-admin` — es decir, **todas las rutas de `app/api/**` devuelven 500**, aunque el build pase sin errores y aunque en local funcione (el `node_modules` local puede tener la versión vieja cacheada).
+
+Para verificar el pin sin desplegar:
+```powershell
+npm ls jose            # debe decir 5.10.0 overridden
+node -e "require('jwks-rsa')"   # debe cargar sin ERR_REQUIRE_ESM
+```
+
 ## Troubleshooting
 
 - **401 en el workflow de Actions**: `CRON_SECRET` (Vercel) y `NOTIFICATIONS_CRON_SECRET` (GitHub) no coinciden.
