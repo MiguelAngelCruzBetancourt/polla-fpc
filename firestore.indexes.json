@@ -32,6 +32,22 @@
         { "fieldPath": "roomId", "order": "ASCENDING" },
         { "fieldPath": "kickoff", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "outboxEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "processedAt", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "kickoff", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

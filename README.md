@@ -35,6 +35,6 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Backend services & full deploy
+## Full deploy
 
-The frontend here is only part of the system — `security-api`, `business-api` and `notifications-svc` under `services/` need their own deploy (Render), plus a GitHub Actions cron and matching Vercel env vars. See [DEPLOY.md](./DEPLOY.md) for the full process.
+Frontend and API ship together as a single Vercel deployment: the API lives in `app/api/**` and its business logic in `lib/server/**`. The only external moving part is a GitHub Actions cron that triggers the notification jobs. See [DEPLOY.md](./DEPLOY.md) for env vars and the full process.

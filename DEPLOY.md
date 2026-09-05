@@ -1,105 +1,76 @@
 # Despliegue
 
-Este documento reemplaza el conocimiento que antes vivía solo en el dashboard de Railway. Léelo antes de tocar cualquier variable de entorno de producción.
+Todo el sistema vive en **un solo despliegue de Vercel**. No hay microservicios separados ni proveedores de contenedores.
 
 ## Arquitectura
 
-| Componente | Dónde vive | Notas |
-|---|---|---|
-| Frontend (Next.js, PWA) | Vercel | No se toca en esta migración. |
-| `security-api`, `business-api`, `notifications-svc` | Render (free tier) | Ver `render.yaml` en la raíz. |
-| Base de datos | Firestore (proyecto Firebase `pollabetplay`) | Independiente de todo lo demás. |
-| Jobs periódicos de `notifications-svc` | GitHub Actions (`.github/workflows/notifications-cron.yml`) | Reemplaza el `setInterval` interno en producción. |
+| Componente | Dónde vive |
+|---|---|
+| Frontend (Next.js, PWA) + toda la API (`app/api/**`) | Vercel |
+| Base de datos y push | Firebase (Firestore + FCM), proyecto `pollabetplay` |
+| Jobs periódicos de notificaciones | GitHub Actions (`.github/workflows/notifications-cron.yml`) |
 
-Render free tier duerme cada servicio tras 15 min sin tráfico (cold start de 30-60s en el primer request). Es un trade-off aceptado a cambio de $0 — el cron de GitHub Actions le pega a `notifications-svc` cada 5 min, así que en la práctica ese servicio queda casi siempre despierto.
+La lógica de negocio server-side está en `lib/server/**` (framework-agnóstica) y los route handlers de `app/api/**` son envoltorios finos sobre ella. La autenticación es `getAuthContext()` en `lib/api-auth.ts`, que verifica el ID token de Firebase en proceso.
 
-## Orden de despliegue (primera vez)
+### Por qué el cron vive en GitHub Actions y no en Vercel
 
-1. **`security-api`** en Render — no depende de nadie más.
-2. **`business-api`** en Render — necesita la URL pública de `security-api` (`SECURITY_API_URL`).
-3. **`notifications-svc`** en Render — necesita la URL pública de `security-api` (`SECURITY_API_URL`).
-4. Workflow de **GitHub Actions** — necesita la URL pública de `notifications-svc`.
-5. Variables de entorno en **Vercel** — necesitan las URLs de `business-api` y `notifications-svc`, más un redeploy.
+Los jobs de notificaciones (drenar `outboxEvents` y avisar de partidos próximos) necesitan correr cada pocos minutos, pero en serverless no hay proceso persistente para un `setInterval`, y **Vercel Cron en el plan Hobby solo permite una ejecución diaria** — insuficiente para el aviso de "10 minutos antes del partido". El workflow de GitHub Actions corre cada 5 minutos, es gratis y no tiene esa limitación.
 
-## Render
+## Variables de entorno en Vercel
 
-### Opción rápida: aplicar el Blueprint
+Todas en el entorno **Production** (y Preview si se usa):
 
-El repo trae `render.yaml` en la raíz con los 3 servicios ya configurados (build/start command, health check, variables). En Render: **New → Blueprint**, conectar este repo, y aplicar. Render pedirá los valores de las variables marcadas `sync: false` (ver tabla abajo) — nunca se guardan en git.
-
-Nota: si el Blueprint no valida (la sintaxis de `render.yaml` puede cambiar entre versiones de Render), crear los 3 servicios manualmente desde el dashboard como fallback, usando exactamente los mismos comandos que aparecen en `render.yaml`.
-
-### Por qué el Root Directory queda en la raíz del repo
-
-Cada microservicio depende de paquetes hermanos vía `file:../shared/...` en su `package.json` (ver `services/shared/`). Render **no da acceso a nada fuera del Root Directory** configurado — por eso el Root Directory se deja en la raíz del monorepo y el build/start command hace `cd services/<servicio>` explícitamente, en vez de fijar un Root Directory por servicio (eso rompería el `npm install` de los paquetes `file:../shared/...`).
-
-### Por qué el buildCommand instala primero cada paquete compartido
-
-npm resuelve un `"file:../shared/..."` como un **symlink** hacia la carpeta real del paquete (ej. `services/security-api/node_modules/@polla-fpc/internal-auth -> services/shared/internal-auth`). TypeScript compila el archivo real detrás del symlink, y busca `node_modules` subiendo desde esa ubicación real — no desde el servicio que lo consume. `npm install` **no instala automáticamente** las dependencias propias de un paquete `file:` dentro de su propia carpeta, solo crea el symlink. Por eso cada `buildCommand` en `render.yaml` hace primero `cd services/shared/<paquete> && npm install` por cada paquete compartido que ese servicio usa, antes de instalar/buildear el servicio en sí — sin ese paso, el build falla en un checkout limpio (como el de Render) con `Cannot find module 'jose'` (o el paquete que corresponda), aunque localmente pueda "funcionar" por un `npm install` manual viejo que haya quedado en esa carpeta.
-
-### Variables de entorno por servicio
-
-Los valores reales de Firebase salen de Firebase Console → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada (mismo mecanismo que ya se usaba con Railway/Vercel). **`FIREBASE_ADMIN_PRIVATE_KEY` debe pegarse con los `\n` como texto literal** (una sola línea), no como saltos de línea reales — el código hace `.replace(/\\n/g, "\n")`.
-
-**`security-api`**
 ```
-FIREBASE_ADMIN_PROJECT_ID=pollabetplay
-FIREBASE_ADMIN_CLIENT_EMAIL=<client_email de la service account>
-FIREBASE_ADMIN_PRIVATE_KEY=<private_key con \n literales>
-INTERNAL_AUTH_SECRET=<generar con: openssl rand -base64 48>
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+NEXT_PUBLIC_FIREBASE_VAPID_KEY
+FIREBASE_ADMIN_PROJECT_ID
+FIREBASE_ADMIN_CLIENT_EMAIL
+FIREBASE_ADMIN_PRIVATE_KEY
+CRON_SECRET
 ```
 
-**`business-api`**
+Notas importantes:
+- **`FIREBASE_ADMIN_PRIVATE_KEY` va en una sola línea con los `\n` como texto literal**, no con saltos de línea reales — el código hace `.replace(/\\n/g, "\n")`. Pegarla con saltos reales rompe la inicialización de Firebase Admin y produce errores 500 en cualquier ruta que toque Firestore.
+- Las variables con prefijo `NEXT_PUBLIC_` deben ser de tipo **Config** en Vercel, no Secret (Vercel bloquea guardar como Secret algo con prefijo público, porque igual termina expuesto en el bundle del navegador).
+- **No definir `NEXT_PUBLIC_USE_FIREBASE_EMULATOR` en producción.** Si vale `true`, el cliente intenta conectarse al emulador en `127.0.0.1` del navegador de cada usuario y se rompe el login.
+- No definir `FIRESTORE_EMULATOR_HOST` ni `FIREBASE_AUTH_EMULATOR_HOST` en producción.
+
+Después de cambiar cualquier variable hay que hacer **Redeploy**: las `NEXT_PUBLIC_*` se compilan dentro del bundle del cliente en tiempo de build, así que cambiarlas sin redeploy no tiene efecto.
+
+## Cron de notificaciones (GitHub Actions)
+
+En el repo → Settings → Secrets and variables → Actions:
+- **Variable** `NOTIFICATIONS_API_URL`: URL pública de la app en Vercel (sin `/` al final).
+- **Secret** `NOTIFICATIONS_CRON_SECRET`: mismo valor que `CRON_SECRET` en Vercel.
+
+El workflow corre cada 5 minutos y golpea `/api/internal/jobs/drain-outbox` y `/api/internal/jobs/check-schedule` con el header `X-Cron-Secret`. Se puede disparar a mano desde **Actions → notifications-cron → Run workflow**.
+
+El workflow con `schedule` solo se dispara automáticamente desde la **rama por defecto** del repo.
+
+## Firestore
+
+`firestore.rules` e `firestore.indexes.json` se despliegan aparte con:
+```powershell
+npx firebase deploy --only firestore:indexes
+npx firebase deploy --only firestore:rules
 ```
-FIREBASE_ADMIN_PROJECT_ID=pollabetplay
-FIREBASE_ADMIN_CLIENT_EMAIL=<...>
-FIREBASE_ADMIN_PRIVATE_KEY=<...>
-SECURITY_API_URL=<URL pública de security-api en Render>
-```
+Los índices compuestos que necesitan los jobs (`outboxEvents(processedAt, createdAt)` y `matches(status, kickoff)`) ya están en `firestore.indexes.json`. Un índice recién creado tarda unos minutos en pasar de "Building" a "Enabled"; mientras tanto las queries que lo usan fallan.
 
-**`notifications-svc`**
-```
-FIREBASE_ADMIN_PROJECT_ID=pollabetplay
-FIREBASE_ADMIN_CLIENT_EMAIL=<...>
-FIREBASE_ADMIN_PRIVATE_KEY=<...>
-SECURITY_API_URL=<URL pública de security-api en Render>
-USE_EXTERNAL_SCHEDULER=true
-CRON_SECRET=<generar con: openssl rand -base64 48>
-```
+## Runbook: rotar `CRON_SECRET`
 
-No definir `FIRESTORE_EMULATOR_HOST` ni `FIREBASE_AUTH_EMULATOR_HOST` en ninguno de los 3 — su ausencia hace que se usen las credenciales reales en vez del emulador.
-
-Todos exponen `GET /health` — configurado como Health Check Path en `render.yaml`.
-
-## GitHub Actions (cron de notifications-svc)
-
-En este repo → Settings → Secrets and variables → Actions:
-- **Variable** `NOTIFICATIONS_API_URL`: URL pública de `notifications-svc` en Render (ej. `https://polla-notifications-svc.onrender.com`).
-- **Secret** `NOTIFICATIONS_CRON_SECRET`: mismo valor que `CRON_SECRET` en Render.
-
-El workflow (`.github/workflows/notifications-cron.yml`) corre cada 5 minutos y también se puede disparar manualmente desde la pestaña **Actions → notifications-cron → Run workflow** para probarlo sin esperar.
-
-## Vercel (frontend)
-
-Actualizar en Project Settings → Environment Variables (entorno Production, y Preview si aplica):
-- `BUSINESS_API_URL` = URL pública de `business-api` en Render (server-side, usada por el rewrite de `next.config.ts`).
-- `NEXT_PUBLIC_NOTIFICATIONS_API_URL` = URL pública de `notifications-svc` en Render.
-
-**`NEXT_PUBLIC_NOTIFICATIONS_API_URL` se inyecta en build time** (Next.js la reemplaza estáticamente en el bundle de cliente) — cambiarla en el dashboard sin redeploy no tiene efecto. Después de actualizar ambas variables, disparar un **Redeploy** desde Vercel.
-
-Esto es completamente transparente para los usuarios de la PWA: el frontend sigue en el mismo dominio de siempre, el service worker solo cachea assets estáticos (no la config de backend), y al volver a abrir la app el navegador simplemente pide el HTML/JS más reciente. Nadie reinstala nada.
-
-## Runbook: rotar `CRON_SECRET` o `INTERNAL_AUTH_SECRET`
-
-1. Generar un nuevo valor (`openssl rand -base64 48`).
-2. Actualizarlo en Render (el/los servicio(s) que lo usan) y esperar a que redeploye.
-3. Si es `CRON_SECRET`, actualizar también el secret `NOTIFICATIONS_CRON_SECRET` en GitHub Actions.
-4. Si es `INTERNAL_AUTH_SECRET`, debe coincidir exactamente en `security-api` (donde se firma) — este proyecto no comparte ese secreto con otros servicios, solo `security-api` lo usa para firmar/verificar su propio JWT interno.
+1. Generar: `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`
+2. Actualizarlo en Vercel y hacer Redeploy.
+3. Actualizar el secret `NOTIFICATIONS_CRON_SECRET` en GitHub Actions.
 
 ## Troubleshooting
 
-- **401 en `/internal/outbox/drain-now` o `/internal/match-schedule/check-now`**: `CRON_SECRET` (Render) y `NOTIFICATIONS_CRON_SECRET` (GitHub) no coinciden.
-- **503 en esos mismos endpoints**: `CRON_SECRET` no está configurado en Render.
-- **Notificaciones no llegan pese a que el workflow corre en verde**: revisar logs del servicio `notifications-svc` en Render, y confirmar que `SECURITY_API_URL` apunta a la URL correcta de `security-api`.
-- **Primer request muy lento tras un rato sin uso**: esperado, el servicio en Render estaba dormido (free tier). El siguiente request ya es rápido.
-- **`error TS2307: Cannot find module '...'` en el build de Render**: falta el `cd services/shared/<paquete> && npm install` correspondiente en el `buildCommand` de ese servicio (ver "Por qué el buildCommand instala primero cada paquete compartido" arriba). Revisar que `render.yaml` tenga el comando completo y que el Build Command configurado en el dashboard de Render coincida.
+- **401 en el workflow de Actions**: `CRON_SECRET` (Vercel) y `NOTIFICATIONS_CRON_SECRET` (GitHub) no coinciden.
+- **503 en `/api/internal/jobs/*`**: falta `CRON_SECRET` en Vercel.
+- **401 "No autenticado" en la app**: el ID token de Firebase no llegó o venció; revisar que el usuario tenga sesión activa.
+- **500 en rutas que tocan Firestore**: casi siempre `FIREBASE_ADMIN_PRIVATE_KEY` mal pegada (ver arriba), o un índice de Firestore faltante/en construcción.
+- **Las notificaciones push no llegan**: revisar que el workflow corra en verde, que el usuario haya aceptado el permiso, y que `NEXT_PUBLIC_FIREBASE_VAPID_KEY` esté configurada.

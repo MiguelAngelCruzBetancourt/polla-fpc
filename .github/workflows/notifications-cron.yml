@@ -1,13 +1,14 @@
 name: notifications-cron
 
-# Dispara periódicamente los jobs de background de notifications-svc
-# (drenaje de outbox + chequeo de horarios de partidos) que en local corren
-# como setInterval dentro del proceso. Ver services/notifications-svc/src/server.ts
-# y DEPLOY.md para el contexto completo.
+# Dispara periódicamente los jobs de notificaciones (drenaje de outbox +
+# chequeo de horarios de partidos). Viven como route handlers en la app de
+# Next.js desplegada en Vercel; hace falta un cron externo porque en serverless
+# no hay proceso persistente y Vercel Cron en el plan Hobby solo corre 1 vez al
+# día. Ver DEPLOY.md para el contexto completo.
 #
 # Requiere configurar en este repo (Settings > Secrets and variables > Actions):
-#   - Variable NOTIFICATIONS_API_URL: URL pública de notifications-svc en Render.
-#   - Secret NOTIFICATIONS_CRON_SECRET: mismo valor que CRON_SECRET en Render.
+#   - Variable NOTIFICATIONS_API_URL: URL pública de la app en Vercel.
+#   - Secret NOTIFICATIONS_CRON_SECRET: mismo valor que CRON_SECRET en Vercel.
 on:
   schedule:
     # Cada 5 minutos — GitHub Actions no garantiza puntualidad menor a esto de
@@ -22,7 +23,7 @@ jobs:
     steps:
       - name: Drenar outbox de notificaciones
         run: |
-          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/internal/outbox/drain-now" \
+          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/api/internal/jobs/drain-outbox" \
             -H "X-Cron-Secret: ${{ secrets.NOTIFICATIONS_CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 30
@@ -30,7 +31,7 @@ jobs:
       - name: Chequear horarios de partidos
         if: always()
         run: |
-          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/internal/match-schedule/check-now" \
+          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/api/internal/jobs/check-schedule" \
             -H "X-Cron-Secret: ${{ secrets.NOTIFICATIONS_CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 30

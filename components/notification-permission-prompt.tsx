@@ -10,9 +10,7 @@ import { listenForegroundPush, requestPushToken } from "@/lib/firebase-messaging
 const DISMISSED_KEY = "polla:notif-prompt-dismissed";
 
 async function registerDeviceToken(fcmToken: string): Promise<boolean> {
-  const base = process.env.NEXT_PUBLIC_NOTIFICATIONS_API_URL;
-  if (!base) return false;
-  const res = await authFetch(`${base}/devices/register`, {
+  const res = await authFetch("/api/devices/register", {
     method: "POST",
     body: JSON.stringify({ fcmToken }),
   });
@@ -23,7 +21,7 @@ async function registerDeviceToken(fcmToken: string): Promise<boolean> {
  * Banner discreto para activar notificaciones push. Si el permiso ya estaba
  * otorgado de antes (otra sesión/dispositivo), reintenta el registro en
  * silencio sin mostrar nada — es idempotente del lado del backend
- * (notifications-svc dedupe por valor de token).
+ * (device-service dedupe por valor de token).
  */
 export function NotificationPermissionPrompt() {
   const { user } = useAuth();

@@ -37,7 +37,7 @@ async function main() {
 
   // Nota: NO se filtra por kickoff en la query (evita repetir el mismo
   // patrón de lectura sostenida que agrava la cuota de Firestore, ver
-  // services/notifications-svc/src/services/match-schedule-service.ts) —
+  // lib/server/match-schedule-service.ts) —
   // esta es una corrida manual única, así que se trae todo status=="scheduled"
   // (debería ser un conjunto chico) y se filtra por kickoff en memoria.
   const [matchesSnap, roomsSnap] = await Promise.all([
