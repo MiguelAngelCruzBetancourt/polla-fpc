@@ -33,6 +33,10 @@ Nota: si el Blueprint no valida (la sintaxis de `render.yaml` puede cambiar entr
 
 Cada microservicio depende de paquetes hermanos vía `file:../shared/...` en su `package.json` (ver `services/shared/`). Render **no da acceso a nada fuera del Root Directory** configurado — por eso el Root Directory se deja en la raíz del monorepo y el build/start command hace `cd services/<servicio>` explícitamente, en vez de fijar un Root Directory por servicio (eso rompería el `npm install` de los paquetes `file:../shared/...`).
 
+### Por qué el buildCommand instala primero cada paquete compartido
+
+npm resuelve un `"file:../shared/..."` como un **symlink** hacia la carpeta real del paquete (ej. `services/security-api/node_modules/@polla-fpc/internal-auth -> services/shared/internal-auth`). TypeScript compila el archivo real detrás del symlink, y busca `node_modules` subiendo desde esa ubicación real — no desde el servicio que lo consume. `npm install` **no instala automáticamente** las dependencias propias de un paquete `file:` dentro de su propia carpeta, solo crea el symlink. Por eso cada `buildCommand` en `render.yaml` hace primero `cd services/shared/<paquete> && npm install` por cada paquete compartido que ese servicio usa, antes de instalar/buildear el servicio en sí — sin ese paso, el build falla en un checkout limpio (como el de Render) con `Cannot find module 'jose'` (o el paquete que corresponda), aunque localmente pueda "funcionar" por un `npm install` manual viejo que haya quedado en esa carpeta.
+
 ### Variables de entorno por servicio
 
 Los valores reales de Firebase salen de Firebase Console → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada (mismo mecanismo que ya se usaba con Railway/Vercel). **`FIREBASE_ADMIN_PRIVATE_KEY` debe pegarse con los `\n` como texto literal** (una sola línea), no como saltos de línea reales — el código hace `.replace(/\\n/g, "\n")`.
@@ -98,3 +102,4 @@ Esto es completamente transparente para los usuarios de la PWA: el frontend sigu
 - **503 en esos mismos endpoints**: `CRON_SECRET` no está configurado en Render.
 - **Notificaciones no llegan pese a que el workflow corre en verde**: revisar logs del servicio `notifications-svc` en Render, y confirmar que `SECURITY_API_URL` apunta a la URL correcta de `security-api`.
 - **Primer request muy lento tras un rato sin uso**: esperado, el servicio en Render estaba dormido (free tier). El siguiente request ya es rápido.
+- **`error TS2307: Cannot find module '...'` en el build de Render**: falta el `cd services/shared/<paquete> && npm install` correspondiente en el `buildCommand` de ese servicio (ver "Por qué el buildCommand instala primero cada paquete compartido" arriba). Revisar que `render.yaml` tenga el comando completo y que el Build Command configurado en el dashboard de Render coincida.

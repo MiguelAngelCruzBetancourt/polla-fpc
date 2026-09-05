@@ -9,13 +9,23 @@
 #
 # Las variables con sync: false no se guardan en este archivo ni en git —
 # Render las pide una sola vez al aplicar el Blueprint.
+#
+# Cada buildCommand instala primero las dependencias propias de los paquetes
+# compartidos que ese servicio usa (ej. "cd services/shared/internal-auth &&
+# npm install"). Es necesario porque el "file:../shared/..." en package.json
+# se resuelve como symlink: npm nunca instala las dependencias del paquete
+# symlinkeado dentro de SU PROPIA carpeta automáticamente, y TypeScript
+# compila el archivo real detrás del symlink (busca node_modules subiendo
+# desde services/shared/<paquete>, no desde el servicio que lo consume). Sin
+# este paso, el build falla con "Cannot find module 'jose'" (o el paquete que
+# corresponda) en un checkout limpio como el de Render.
 
 services:
   - name: polla-security-api
     type: web
     runtime: node
     plan: free
-    buildCommand: cd services/security-api && npm install && npm run build
+    buildCommand: cd services/shared/internal-auth && npm install && cd ../../security-api && npm install && npm run build
     startCommand: cd services/security-api && npm start
     healthCheckPath: /health
     envVars:
@@ -32,7 +42,7 @@ services:
     type: web
     runtime: node
     plan: free
-    buildCommand: cd services/business-api && npm install && npm run build
+    buildCommand: cd services/shared/internal-auth && npm install && cd ../types && npm install && cd ../schemas && npm install && cd ../../business-api && npm install && npm run build
     startCommand: cd services/business-api && npm start
     healthCheckPath: /health
     envVars:
@@ -50,7 +60,7 @@ services:
     type: web
     runtime: node
     plan: free
-    buildCommand: cd services/notifications-svc && npm install && npm run build
+    buildCommand: cd services/shared/internal-auth && npm install && cd ../types && npm install && cd ../../notifications-svc && npm install && npm run build
     startCommand: cd services/notifications-svc && npm start
     healthCheckPath: /health
     envVars:
