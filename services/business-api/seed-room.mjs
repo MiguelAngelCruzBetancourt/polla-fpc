@@ -1,0 +1,11 @@
+﻿import { initializeApp } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080";
+initializeApp({ projectId: "pollabetplay" });
+const db = getFirestore();
+const [adminUid, userUid] = process.argv.slice(2);
+const roomRef = db.collection("rooms").doc("test-room");
+await roomRef.set({ name: "Sala de prueba", code: "TEST01", ownerUid: adminUid, championship: "Liga BetPlay", createdAt: Timestamp.now(), status: "open", bannedUids: [] });
+await roomRef.collection("members").doc(adminUid).set({ uid: adminUid, displayName: "Admin", joinedAt: Timestamp.now(), totalPoints: 0, exactCount: 0, winnerCount: 0 });
+await roomRef.collection("members").doc(userUid).set({ uid: userUid, displayName: "Usuario", joinedAt: Timestamp.now(), totalPoints: 0, exactCount: 0, winnerCount: 0 });
+console.log("Sala 'test-room' creada.");

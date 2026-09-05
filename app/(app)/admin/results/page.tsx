@@ -2,6 +2,7 @@
 
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import dayjs from "dayjs";
+import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AuditFeed } from "@/components/audit-feed";
@@ -13,8 +14,17 @@ import { Card } from "@/components/ui/card";
 import { TextField } from "@/components/ui/text-field";
 import { authFetchJson } from "@/lib/api-client";
 import { db } from "@/lib/firebase-client";
-import { getDisplayStatus } from "@/lib/match-status";
+import { getDisplayStatus, type DisplayStatus } from "@/lib/match-status";
 import type { MatchDoc, RoomDoc } from "@/lib/types";
+
+const ADMIN_STATUS_LABEL: Record<DisplayStatus, string> = {
+  scheduled: "Por pronosticar",
+  locked: "Cerrado",
+  revealed: "Revelado",
+  finished: "Finalizado",
+  cancelled: "Cancelado",
+  postponed: "Aplazado",
+};
 
 type MatchWithId = MatchDoc & { id: string };
 type RoomWithId = RoomDoc & { id: string };
@@ -348,6 +358,10 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
     kickoff: dayjs(match.kickoff.toDate()).format("YYYY-MM-DDTHH:mm"),
   });
   const [resultRow, setResultRow] = useState({ homeScore: "", awayScore: "" });
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleRow, setRescheduleRow] = useState({ kickoff: "" });
+
+  const needsAttention = match.status === "scheduled" && match.kickoff.toDate() < new Date();
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -390,6 +404,50 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
     }
   }
 
+  async function handlePostpone() {
+    if (
+      !window.confirm(
+        "¿Aplazar este partido? Se borrarán todos los pronósticos enviados y quedará pendiente de reprogramar.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await authFetchJson(`/api/matches/${match.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "postpone" }),
+      });
+      await onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo aplazar el partido.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRescheduleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await authFetchJson(`/api/matches/${match.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "reschedule",
+          kickoff: new Date(rescheduleRow.kickoff).toISOString(),
+        }),
+      });
+      setRescheduling(false);
+      await onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reprogramar el partido.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleResultSubmit(e: React.FormEvent) {
     e.preventDefault();
     const homeScore = Number(resultRow.homeScore);
@@ -426,7 +484,12 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
           </p>
           <p className="flex items-center gap-2 text-xs text-text-muted">
             Jornada {match.jornada} · {dayjs(match.kickoff.toDate()).format("ddd D MMM, h:mm A")}
-            <Badge variant="neutral">{status}</Badge>
+            <Badge variant={status === "postponed" ? "warning" : "neutral"}>{ADMIN_STATUS_LABEL[status]}</Badge>
+            {needsAttention && (
+              <Badge variant="error" icon={<AlertTriangle size={12} />}>
+                Necesita atención
+              </Badge>
+            )}
           </p>
         </div>
         {status !== "finished" && (
@@ -439,9 +502,19 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
                 Cancelar
               </Button>
             )}
-            {status !== "cancelled" && (
+            {status !== "cancelled" && status !== "postponed" && (
               <Button variant="outline" size="sm" onClick={() => setLoadingResult((v) => !v)} disabled={busy}>
                 Cargar resultado
+              </Button>
+            )}
+            {status !== "cancelled" && status !== "postponed" && (
+              <Button variant="danger" size="sm" onClick={handlePostpone} disabled={busy}>
+                Aplazar
+              </Button>
+            )}
+            {status === "postponed" && (
+              <Button variant="outline" size="sm" onClick={() => setRescheduling((v) => !v)} disabled={busy}>
+                Reprogramar
               </Button>
             )}
           </div>
@@ -452,6 +525,27 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
         <p className="mt-2 text-sm text-text-muted">
           Resultado oficial: {match.officialHomeScore} - {match.officialAwayScore}
         </p>
+      )}
+
+      {status === "postponed" && (
+        <p className="mt-2 text-sm text-text-muted">
+          Aplazado — sin fecha confirmada. Pronósticos anteriores borrados.
+        </p>
+      )}
+
+      {rescheduling && (
+        <form onSubmit={handleRescheduleSubmit} className="mt-3 flex items-end gap-2">
+          <TextField
+            label="Nueva fecha y hora"
+            type="datetime-local"
+            value={rescheduleRow.kickoff}
+            onChange={(e) => setRescheduleRow({ kickoff: e.target.value })}
+            required
+          />
+          <Button type="submit" isLoading={busy}>
+            Confirmar nueva fecha
+          </Button>
+        </form>
       )}
 
       {editing && (

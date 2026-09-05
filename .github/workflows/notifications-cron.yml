@@ -1,0 +1,36 @@
+name: notifications-cron
+
+# Dispara periódicamente los jobs de background de notifications-svc
+# (drenaje de outbox + chequeo de horarios de partidos) que en local corren
+# como setInterval dentro del proceso. Ver services/notifications-svc/src/server.ts
+# y DEPLOY.md para el contexto completo.
+#
+# Requiere configurar en este repo (Settings > Secrets and variables > Actions):
+#   - Variable NOTIFICATIONS_API_URL: URL pública de notifications-svc en Render.
+#   - Secret NOTIFICATIONS_CRON_SECRET: mismo valor que CRON_SECRET en Render.
+on:
+  schedule:
+    # Cada 5 minutos — GitHub Actions no garantiza puntualidad menor a esto de
+    # todas formas. Ambos jobs son idempotentes (dedup por notificationLog /
+    # outboxEvents.processedAt), así que ejecutarlos de más no duplica nada.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Drenar outbox de notificaciones
+        run: |
+          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/internal/outbox/drain-now" \
+            -H "X-Cron-Secret: ${{ secrets.NOTIFICATIONS_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30
+
+      - name: Chequear horarios de partidos
+        if: always()
+        run: |
+          curl -sf -X POST "${{ vars.NOTIFICATIONS_API_URL }}/internal/match-schedule/check-now" \
+            -H "X-Cron-Secret: ${{ secrets.NOTIFICATIONS_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30
