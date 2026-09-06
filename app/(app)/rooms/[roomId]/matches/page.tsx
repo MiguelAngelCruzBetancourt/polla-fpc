@@ -27,29 +27,33 @@ export default function RoomMatchesPage() {
   const load = useCallback(async () => {
     if (!user) return;
 
-    const memberSnap = await getDocs(collection(db, "rooms", roomId, "members"));
+    // Estas tres consultas no dependen entre sí (memberMap recién se usa al
+    // filtrar los pronósticos revelados, más abajo), así que van en paralelo:
+    // en serie eran tres viajes encadenados a Firestore.
+    const { start, end } = getColombiaTodayRangeUtc();
+    const [memberSnap, matchesSnap, myPredictionsSnap] = await Promise.all([
+      getDocs(collection(db, "rooms", roomId, "members")),
+      getDocs(
+        query(
+          collection(db, "matches"),
+          where("roomId", "==", roomId),
+          where("kickoff", ">=", Timestamp.fromDate(start)),
+          where("kickoff", "<", Timestamp.fromDate(end)),
+          orderBy("kickoff", "asc"),
+        ),
+      ),
+      getDocs(query(collection(db, "predictions"), where("uid", "==", user.uid))),
+    ]);
+
     const memberMap: Record<string, string> = {};
     memberSnap.docs.forEach((d) => {
       memberMap[d.id] = (d.data() as { displayName: string }).displayName;
     });
     setMembers(memberMap);
 
-    const { start, end } = getColombiaTodayRangeUtc();
-    const matchesSnap = await getDocs(
-      query(
-        collection(db, "matches"),
-        where("roomId", "==", roomId),
-        where("kickoff", ">=", Timestamp.fromDate(start)),
-        where("kickoff", "<", Timestamp.fromDate(end)),
-        orderBy("kickoff", "asc"),
-      ),
-    );
     const matchList = matchesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as MatchDoc) }));
     setMatches(matchList);
 
-    const myPredictionsSnap = await getDocs(
-      query(collection(db, "predictions"), where("uid", "==", user.uid)),
-    );
     const mine: Record<string, PredictionWithId> = {};
     myPredictionsSnap.docs.forEach((d) => {
       const data = d.data() as PredictionDoc;
@@ -57,15 +61,23 @@ export default function RoomMatchesPage() {
     });
     setMyPredictions(mine);
 
-    const revealed: Record<string, RevealedPrediction[]> = {};
-    for (const match of matchList) {
+    // Solo los partidos ya revelados/finalizados exponen los pronósticos de los
+    // demás. Antes se consultaban uno por uno con await dentro de un for, o sea
+    // K viajes en serie; ahora son K en paralelo (un solo tramo de latencia).
+    const revealedMatches = matchList.filter((match) => {
       const status = getDisplayStatus(match);
-      if (status !== "revealed" && status !== "finished") continue;
+      return status === "revealed" || status === "finished";
+    });
 
-      const predsSnap = await getDocs(
-        query(collection(db, "predictions"), where("matchId", "==", match.id)),
-      );
-      revealed[match.id] = predsSnap.docs
+    const revealedSnaps = await Promise.all(
+      revealedMatches.map((match) =>
+        getDocs(query(collection(db, "predictions"), where("matchId", "==", match.id))),
+      ),
+    );
+
+    const revealed: Record<string, RevealedPrediction[]> = {};
+    revealedMatches.forEach((match, i) => {
+      revealed[match.id] = revealedSnaps[i]!.docs
         .map((d) => d.data() as PredictionDoc)
         .filter((p) => p.uid in memberMap)
         .map((p) => ({
@@ -75,7 +87,7 @@ export default function RoomMatchesPage() {
           awayScore: p.awayScore,
           points: p.points,
         }));
-    }
+    });
     setRevealedByMatch(revealed);
   }, [roomId, user]);
 
