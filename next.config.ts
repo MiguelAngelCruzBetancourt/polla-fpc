@@ -84,6 +84,10 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
+  // Todo lo que vive en /public entra al precache del service worker. Los
+  // escudos deben entrar (así funcionan offline y sin latencia), pero el README
+  // de esa carpeta es documentación y se estaba descargando en cada dispositivo.
+  publicExcludes: ["!noprecache/**/*", "!assets/teams/README.md"],
   // Mantiene el resto de reglas por defecto y solo pisa las que comparten cacheName.
   extendDefaultRuntimeCaching: true,
   workboxOptions: {

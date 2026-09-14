@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TeamCombobox } from "@/components/ui/team-combobox";
+import { TeamCrest } from "@/components/ui/team-crest";
 import { TextField } from "@/components/ui/text-field";
 import { authFetchJson } from "@/lib/api-client";
 import { db } from "@/lib/firebase-client";
@@ -535,19 +536,23 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="font-medium text-text">
-            {match.homeTeam} vs {match.awayTeam}
-          </p>
-          <p className="flex items-center gap-2 text-xs text-text-muted">
-            Jornada {match.jornada} · {dayjs(match.kickoff.toDate()).format("ddd D MMM, h:mm A")}
-            <Badge variant={status === "postponed" ? "warning" : "neutral"}>{ADMIN_STATUS_LABEL[status]}</Badge>
-            {needsAttention && (
-              <Badge variant="error" icon={<AlertTriangle size={12} />}>
-                Necesita atención
-              </Badge>
-            )}
-          </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <TeamCrest teamName={match.homeTeam} size="sm" />
+          <TeamCrest teamName={match.awayTeam} size="sm" />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-text">
+              {match.homeTeam} vs {match.awayTeam}
+            </p>
+            <p className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+              Jornada {match.jornada} · {dayjs(match.kickoff.toDate()).format("ddd D MMM, h:mm A")}
+              <Badge variant={status === "postponed" ? "warning" : "neutral"}>{ADMIN_STATUS_LABEL[status]}</Badge>
+              {needsAttention && (
+                <Badge variant="error" icon={<AlertTriangle size={12} />}>
+                  Necesita atención
+                </Badge>
+              )}
+            </p>
+          </div>
         </div>
         {status !== "finished" && (
           <div className="flex gap-2">

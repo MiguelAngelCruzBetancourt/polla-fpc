@@ -1,18 +1,12 @@
-// Mapeo opcional nombre de equipo -> escudo SVG en /public/assets/teams/.
-// No incluye escudos reales por defecto (derechos de autor de los clubes/DIMAYOR/BetPlay).
-// Para agregar uno: coloca el SVG en public/assets/teams/<slug>.svg y anade la entrada aqui.
-// Ver public/assets/teams/README.md para la convencion de nombres.
-export const TEAM_CRESTS: Record<string, string> = {};
+// Mapeo nombre de equipo -> escudo en /public/assets/teams/.
+// El mapa NO se escribe a mano: lo genera scripts/generate-crest-map.ts leyendo
+// la carpeta, y se regenera en cada `npm run build`. Para agregar un escudo
+// basta con soltar el archivo con el slug correcto; ver public/assets/teams/README.md.
+import { TEAM_CRESTS } from "@/lib/team-crests.generated";
+import { slugifyTeamName } from "@/lib/slugify";
 
-export function slugifyTeamName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+export { TEAM_CRESTS };
+export { slugifyTeamName };
 
 export function getTeamCrestSrc(teamName: string): string | null {
   return TEAM_CRESTS[slugifyTeamName(teamName)] ?? null;

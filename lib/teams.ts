@@ -1,4 +1,6 @@
-import { slugifyTeamName } from "@/lib/team-crests";
+// Desde @/lib/slugify y no desde @/lib/team-crests: asi este modulo no depende
+// del mapa generado, y scripts/generate-crest-map.ts puede importar TEAMS sin ciclo.
+import { slugifyTeamName } from "@/lib/slugify";
 
 // Equipos habilitados para crear/editar partidos desde el panel de admin.
 // La validacion es solo de UI: el backend sigue aceptando cualquier nombre para

@@ -55,20 +55,24 @@ export function MatchCard({
 
   return (
     <Card className="animate-in">
-      <CardHeader className="items-start">
-        <div className="flex items-center gap-3">
-          <TeamCrest teamName={match.homeTeam} />
-          <div>
-            <p className="font-medium text-text">
-              {match.homeTeam} vs {match.awayTeam}
-            </p>
-            <p className="text-xs text-text-muted">
-              Jornada {match.jornada} · {dayjs(match.kickoff.toDate()).format("ddd D MMM, h:mm A")}
-            </p>
+      <CardHeader className="items-start gap-2">
+        {/* min-w-0 es imprescindible: sin el, un hijo flex se niega a encogerse
+            por debajo del ancho de su contenido y el truncate nunca actua, que
+            es lo que desborda la tarjeta en movil con nombres largos. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <TeamCrest teamName={match.homeTeam} size="sm" />
+            <span className="truncate font-medium text-text">{match.homeTeam}</span>
           </div>
-          <TeamCrest teamName={match.awayTeam} />
+          <div className="flex items-center gap-2">
+            <TeamCrest teamName={match.awayTeam} size="sm" />
+            <span className="truncate font-medium text-text">{match.awayTeam}</span>
+          </div>
+          <p className="text-xs text-text-muted">
+            Jornada {match.jornada} · {dayjs(match.kickoff.toDate()).format("ddd D MMM, h:mm A")}
+          </p>
         </div>
-        <Badge variant={status.variant} icon={<StatusIcon size={12} />}>
+        <Badge variant={status.variant} icon={<StatusIcon size={12} />} className="shrink-0 whitespace-nowrap">
           {status.label}
         </Badge>
       </CardHeader>

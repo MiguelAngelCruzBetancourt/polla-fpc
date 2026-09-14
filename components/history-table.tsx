@@ -18,10 +18,12 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
     <div className="flex flex-col gap-2">
       {rows.map(({ prediction, match }) => (
         <Card key={prediction.matchId} className="flex flex-row items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-3">
+          {/* Lista sin cota (puede tener cientos de filas), asi que aqui manda la
+              densidad: una sola linea con truncate en vez de dos filas. */}
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <TeamCrest teamName={match.homeTeam} size="sm" />
-            <div>
-              <p className="font-medium text-text">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-text">
                 {match.homeTeam} vs {match.awayTeam}
               </p>
               <p className="text-xs text-text-muted">{dayjs(match.kickoff.toDate()).format("D MMM YYYY, h:mm A")}</p>
@@ -31,7 +33,7 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
             </div>
             <TeamCrest teamName={match.awayTeam} size="sm" />
           </div>
-          <div className="text-right text-sm">
+          <div className="shrink-0 text-right text-sm">
             {match.status === "cancelled" && <Badge variant="neutral">Cancelado — no contó</Badge>}
             {match.status === "finished" && (
               <>

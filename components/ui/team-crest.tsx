@@ -1,25 +1,38 @@
 import Image from "next/image";
 import { getTeamCrestSrc } from "@/lib/team-crests";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, SIZE_BOX, SIZE_PX, type AvatarSize } from "@/components/ui/avatar";
 
 export function TeamCrest({
   teamName,
   size = "md",
+  className = "",
 }: {
   teamName: string;
-  size?: "sm" | "md" | "lg";
+  size?: AvatarSize;
+  className?: string;
 }) {
   const src = getTeamCrestSrc(teamName);
-  if (!src) return <Avatar name={teamName} size={size} />;
+  if (!src) return <Avatar name={teamName} size={size} className={className} />;
 
-  const px = size === "sm" ? 28 : size === "lg" ? 48 : 36;
+  const px = SIZE_PX[size];
   return (
     <Image
       src={src}
-      alt={teamName}
+      // El nombre del equipo siempre esta al lado como texto; anunciarlo tambien
+      // desde la imagen lo duplicaria en el lector de pantalla. Mismo criterio
+      // que Avatar, que es aria-hidden.
+      alt=""
+      aria-hidden="true"
       width={px}
       height={px}
-      className="shrink-0 rounded-full object-contain"
+      // Sin `unoptimized`, Next emite /_next/image?url=... y el escudo deja de
+      // servirse desde el precache del service worker (que si lo descarga).
+      // Para un SVG el optimizador no aporta nada: no rasteriza, lo pasa igual.
+      unoptimized
+      loading="lazy"
+      // Caja cuadrada fija + object-contain: escudos de proporciones distintas
+      // ocupan lo mismo sin deformarse.
+      className={`shrink-0 object-contain ${SIZE_BOX[size]} ${className}`}
     />
   );
 }
