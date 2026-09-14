@@ -2,7 +2,7 @@
 
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import dayjs from "dayjs";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AuditFeed } from "@/components/audit-feed";
@@ -11,10 +11,12 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { TeamCombobox } from "@/components/ui/team-combobox";
 import { TextField } from "@/components/ui/text-field";
 import { authFetchJson } from "@/lib/api-client";
 import { db } from "@/lib/firebase-client";
 import { getDisplayStatus, type DisplayStatus } from "@/lib/match-status";
+import { canonicalTeam } from "@/lib/teams";
 import type { MatchDoc, RoomDoc } from "@/lib/types";
 
 const ADMIN_STATUS_LABEL: Record<DisplayStatus, string> = {
@@ -45,14 +47,20 @@ const BONUS_STATUS_LABEL: Record<ResolvedBonusRow["status"], string> = {
 };
 
 interface NewMatchRow {
+  id: string;
   jornada: string;
   homeTeam: string;
   awayTeam: string;
   kickoff: string; // datetime-local
 }
 
-function emptyRow(): NewMatchRow {
-  return { jornada: "", homeTeam: "", awayTeam: "", kickoff: "" };
+// Contador de modulo en vez de crypto.randomUUID(): la pagina se pre-renderiza
+// en el servidor y un id aleatorio provocaria mismatch de hidratacion.
+let rowSeq = 0;
+
+function emptyRow(carry?: Partial<NewMatchRow>): NewMatchRow {
+  // El id va despues del spread para que `carry` nunca lo pise.
+  return { jornada: "", homeTeam: "", awayTeam: "", kickoff: "", ...carry, id: `row-${rowSeq++}` };
 }
 
 export default function AdminResultsPage() {
@@ -64,7 +72,9 @@ export default function AdminResultsPage() {
   }, [loading, resultsAdmin, router]);
 
   const [matches, setMatches] = useState<MatchWithId[] | null>(null);
-  const [rows, setRows] = useState<NewMatchRow[]>([emptyRow()]);
+  // Inicializador perezoso: si no, emptyRow() correria en cada render y el
+  // contador de ids se desincronizaria entre el render del servidor y el cliente.
+  const [rows, setRows] = useState<NewMatchRow[]>(() => [emptyRow()]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -104,22 +114,50 @@ export default function AdminResultsPage() {
     void loadMatches(matchRoomId);
   }, [loadMatches, matchRoomId]);
 
-  function updateRow(index: number, patch: Partial<NewMatchRow>) {
-    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  function updateRow(id: string, patch: Partial<NewMatchRow>) {
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function removeRow(id: string) {
+    setRows((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== id)));
+  }
+
+  function addRow() {
+    // Un lote suele ser la misma jornada y el mismo fin de semana: heredar
+    // ambos campos de la ultima fila ahorra bastante tecleo.
+    setRows((prev) => {
+      const last = prev[prev.length - 1];
+      return [...prev, emptyRow({ jornada: last?.jornada ?? "", kickoff: last?.kickoff ?? "" })];
+    });
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!matchRoomId) return;
     setCreateError(null);
+
+    // Validacion de equipos en cliente: el backend acepta cualquier nombre para
+    // no romper partidos historicos, asi que la lista estricta se aplica aqui.
+    const invalid: string[] = [];
+    for (const [i, row] of rows.entries()) {
+      const home = canonicalTeam(row.homeTeam);
+      const away = canonicalTeam(row.awayTeam);
+      if (!home || !away) invalid.push(`Partido ${i + 1}: equipo fuera de la lista`);
+      else if (home === away) invalid.push(`Partido ${i + 1}: local y visitante no pueden ser el mismo`);
+    }
+    if (invalid.length > 0) {
+      setCreateError(invalid.join(" · "));
+      return;
+    }
+
     setCreating(true);
     try {
       const payload = {
         roomId: matchRoomId,
         matches: rows.map((row) => ({
           jornada: Number(row.jornada),
-          homeTeam: row.homeTeam.trim(),
-          awayTeam: row.awayTeam.trim(),
+          homeTeam: canonicalTeam(row.homeTeam) ?? row.homeTeam.trim(),
+          awayTeam: canonicalTeam(row.awayTeam) ?? row.awayTeam.trim(),
           kickoff: new Date(row.kickoff).toISOString(),
         })),
       };
@@ -205,37 +243,56 @@ export default function AdminResultsPage() {
           </div>
 
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 border-b border-border pb-3 sm:grid-cols-4">
-              <TextField
-                label="Jornada"
-                type="number"
-                value={row.jornada}
-                onChange={(e) => updateRow(i, { jornada: e.target.value })}
-                required
-              />
-              <TextField
-                label="Local"
-                value={row.homeTeam}
-                onChange={(e) => updateRow(i, { homeTeam: e.target.value })}
-                required
-              />
-              <TextField
-                label="Visitante"
-                value={row.awayTeam}
-                onChange={(e) => updateRow(i, { awayTeam: e.target.value })}
-                required
-              />
-              <TextField
-                label="Fecha y hora"
-                type="datetime-local"
-                value={row.kickoff}
-                onChange={(e) => updateRow(i, { kickoff: e.target.value })}
-                required
-              />
+            <div key={row.id} className="rounded-lg border border-border p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-text-muted">Partido {i + 1}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeRow(row.id)}
+                  disabled={rows.length === 1}
+                  aria-label={`Eliminar partido ${i + 1}`}
+                  title={rows.length === 1 ? "Debe quedar al menos una fila" : "Eliminar fila"}
+                  className="text-error hover:bg-error-bg"
+                >
+                  <Trash2 size={16} />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <TextField
+                  label="Jornada"
+                  type="number"
+                  value={row.jornada}
+                  onChange={(e) => updateRow(row.id, { jornada: e.target.value })}
+                  required
+                />
+                <TeamCombobox
+                  label="Local"
+                  value={row.homeTeam}
+                  exclude={row.awayTeam}
+                  onChange={(homeTeam) => updateRow(row.id, { homeTeam })}
+                  required
+                />
+                <TeamCombobox
+                  label="Visitante"
+                  value={row.awayTeam}
+                  exclude={row.homeTeam}
+                  onChange={(awayTeam) => updateRow(row.id, { awayTeam })}
+                  required
+                />
+                <TextField
+                  label="Fecha y hora"
+                  type="datetime-local"
+                  value={row.kickoff}
+                  onChange={(e) => updateRow(row.id, { kickoff: e.target.value })}
+                  required
+                />
+              </div>
             </div>
           ))}
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => setRows((prev) => [...prev, emptyRow()])}>
+            <Button type="button" variant="outline" onClick={addRow}>
               + Agregar fila
             </Button>
             <Button type="submit" isLoading={creating} disabled={!matchRoomId}>
@@ -556,15 +613,17 @@ function AdminMatchRow({ match, onChanged }: { match: MatchWithId; onChanged: ()
             value={editRow.jornada}
             onChange={(e) => setEditRow((r) => ({ ...r, jornada: e.target.value }))}
           />
-          <TextField
+          <TeamCombobox
             label="Local"
             value={editRow.homeTeam}
-            onChange={(e) => setEditRow((r) => ({ ...r, homeTeam: e.target.value }))}
+            exclude={editRow.awayTeam}
+            onChange={(homeTeam) => setEditRow((r) => ({ ...r, homeTeam }))}
           />
-          <TextField
+          <TeamCombobox
             label="Visitante"
             value={editRow.awayTeam}
-            onChange={(e) => setEditRow((r) => ({ ...r, awayTeam: e.target.value }))}
+            exclude={editRow.homeTeam}
+            onChange={(awayTeam) => setEditRow((r) => ({ ...r, awayTeam }))}
           />
           <TextField
             label="Fecha y hora"
