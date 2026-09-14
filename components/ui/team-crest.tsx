@@ -32,7 +32,7 @@ export function TeamCrest({
       loading="lazy"
       // Caja cuadrada fija + object-contain: escudos de proporciones distintas
       // ocupan lo mismo sin deformarse.
-      className={`shrink-0 rounded-full bg-white object-contain ${SIZE_BOX[size]} ${className}`}
+      className={`shrink-0 object-contain ${SIZE_BOX[size]} ${className}`}
     />
   );
 }
